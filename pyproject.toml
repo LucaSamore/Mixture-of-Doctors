@@ -1,0 +1,7 @@
+[project]
+name = "mixture-of-doctors"
+version = "0.1.0"
+description = "An agentic-RAG system for self-management of chronic diseases"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
