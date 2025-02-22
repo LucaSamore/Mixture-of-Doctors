@@ -5,3 +5,14 @@ description = "An agentic-RAG system for self-management of chronic diseases"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = []
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.1.0",
+]
+
+[tool.pyright]
+exclude = [".venv"]
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
