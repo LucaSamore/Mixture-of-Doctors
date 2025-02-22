@@ -2,6 +2,12 @@ version = 1
 revision = 1
 requires-python = ">=3.13"
 
+[manifest]
+members = [
+    "cli",
+    "mixture-of-doctors",
+]
+
 [[package]]
 name = "cfgv"
 version = "3.4.0"
@@ -10,6 +16,11 @@ sdist = { url = "https://files.pythonhosted.org/packages/11/74/539e56497d9bd1d48
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c5/55/51844dd50c4fc7a33b653bfaba4c2456f06955289ca770a5dbd5fd267374/cfgv-3.4.0-py2.py3-none-any.whl", hash = "sha256:b7265b1f29fd3316bfcd2b330d63d024f2bfd8bcb8b0272f8e19a504856c48f9", size = 7249 },
 ]
+
+[[package]]
+name = "cli"
+version = "0.1.0"
+source = { editable = "frontend/cli" }
 
 [[package]]
 name = "distlib"

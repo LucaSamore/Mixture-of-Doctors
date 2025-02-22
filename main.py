@@ -1,5 +1,5 @@
 def main():
-    print("Hello from mixture-of-doctors-feat-frontend!")
+    print("Hello from mixture-of-doctors-feat-frontend-cli!")
 
 
 if __name__ == "__main__":
