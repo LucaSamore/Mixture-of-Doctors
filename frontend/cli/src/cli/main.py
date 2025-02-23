@@ -1,5 +1,6 @@
 import typer
 from typer import Option
+from cli import write_username_to_file, read_username_from_file
 
 app = typer.Typer()
 
@@ -18,34 +19,21 @@ app.add_typer(mod_app, name="mod")
 
 @mod_app.command()
 def new(username: str) -> None:
-    """
-    set global variable to username
-    save new chat for username (empty doc in db)
-    print welcome message
-    print help message
-    """
-    pass
+    new_chat(username)
 
 
 @mod_app.command()
 def restore(username: str) -> None:
-    """
-    set global variable to username
-    restore chat for username (from db)
-    print chat history
-    print help message
-    """
-    pass
+    restore_chat(username)
 
 
 @mod_app.command()
 def chat(username: str) -> None:
-    """
-    set global variable to username
-    restore chat for username (from db) or create new chat (empty doc in db)
-    print chat history (if present) or welcome message
-    print help message
-    """
+    username_from_file = read_username_from_file()
+    if username_from_file is None:
+        new_chat(username)
+    else:
+        restore_chat(username_from_file)
     pass
 
 
@@ -62,7 +50,7 @@ def ask(
         print("Oneshot")
     else:
         """
-        precondition: username variable is not empty
+        precondition: username retrieved from file is not empty
                       if empty, print error message and return
         ask question to chatbot
         retrieve answer
@@ -79,6 +67,26 @@ def quit() -> None:
     print goodbye message
     """
     print("Goodbye!")
+
+
+def new_chat(username: str):
+    write_username_to_file(username)
+    print("New chat:" + username)
+    """
+    save new chat for username (empty doc in db)
+    print welcome message
+    print help message
+    """
+
+
+def restore_chat(username: str):
+    write_username_to_file(username)
+    print("Restore")
+    """
+    restore chat for username (from db)
+    print chat history
+    print help message
+    """
 
 
 if __name__ == "__main__":
