@@ -9,6 +9,7 @@ dependencies = []
 [dependency-groups]
 dev = [
     "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
 ]
 
 [tool.pyright]
