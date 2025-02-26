@@ -9,6 +9,8 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.10.6",
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.3",
     "typer>=0.15.1",
     "websockets>=15.0",
 ]
