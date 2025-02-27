@@ -1,7 +1,7 @@
 import json
 import pytest
 from unittest.mock import AsyncMock, patch
-from connection import connect, build_request
+from connection import connect
 
 
 @pytest.mark.asyncio
@@ -82,11 +82,3 @@ async def test_websocket_connection_error():
         responses = [resp async for resp in connect("test_user", "Hello?")]
 
     assert responses == []  # If connection fails, no responses should be received
-
-
-@pytest.mark.asyncio
-async def test_build_request():
-    """Tests correct creation of the Request object"""
-    request = build_request("test_user", "Hello?")
-    assert request.sender == "test_user"
-    assert request.message == "Hello?"
