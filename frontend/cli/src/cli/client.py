@@ -1,5 +1,7 @@
 import typer
+import asyncio
 from typer import Option
+from connection import print_response
 from cli import write_username_to_file, read_username_from_file
 
 app = typer.Typer()
@@ -8,7 +10,7 @@ app = typer.Typer()
 @app.command()
 def mod() -> None:
     """
-    short description of mod command, a welcome message and list of subcommands
+    TODO: short description of mod command, a welcome message and list of subcommands
     """
     pass
 
@@ -19,59 +21,61 @@ app.add_typer(mod_app, name="mod")
 
 @mod_app.command()
 def new(username: str) -> None:
+    """
+    Create a new chat with the virtual doctor.
+    """
     new_chat(username)
 
 
 @mod_app.command()
 def restore(username: str) -> None:
+    """
+    Continue an existing chat with the virtual doctor.
+    """
     restore_chat(username)
 
 
 @mod_app.command()
 def chat(username: str) -> None:
+    """
+    Start a chat with the virtual doctor.
+    """
     username_from_file = read_username_from_file()
     if username_from_file is None:
         new_chat(username)
     else:
         restore_chat(username_from_file)
-    pass
 
 
 @mod_app.command()
 def ask(
     question: str, oneshot: bool = Option(False, "--oneshot", is_flag=True, help="")
 ) -> None:
-    if oneshot:
-        """
-        ask question to chatbot
-        retrieve answer
-        print answer
-        """
-        print("Oneshot")
-    else:
-        """
-        precondition: username retrieved from file is not empty
-                      if empty, print error message and return
-        ask question to chatbot
-        retrieve answer
-        save question and answer in chat history (db)
-        print chat history
-        print answer
-        """
-        print("Non-oneshot")
+    """
+    Ask question to virtual doctor.
+    """
+    username_from_file = read_username_from_file()
+    if username_from_file is None:
+        typer.echo(
+            "Before asking a question, it is necessary to start the chat and authenticate. Launch the command 'chat' or 'restore' or 'new'"
+        )
+    if not oneshot:
+        # save question and answer in chat history (db)
+        # print chat history
+        pass
+    asyncio.run(print_response(username_from_file, question, typer.echo))
 
 
 @mod_app.command()
 def quit() -> None:
     """
-    print goodbye message
+    Close current chat with virtual doctor.
     """
     print("Goodbye!")
 
 
 def new_chat(username: str):
     write_username_to_file(username)
-    print("New chat:" + username)
     """
     save new chat for username (empty doc in db)
     print welcome message
@@ -81,7 +85,6 @@ def new_chat(username: str):
 
 def restore_chat(username: str):
     write_username_to_file(username)
-    print("Restore")
     """
     restore chat for username (from db)
     print chat history
