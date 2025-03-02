@@ -1,0 +1,17 @@
+[project]
+name = "chat-history"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "robertomitugno", email = "roberto.mitugno@studio.unibo.it" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+chat-history = "chat_history:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
