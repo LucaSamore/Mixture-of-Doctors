@@ -29,3 +29,6 @@ orchestrator:
 
 client:
 	uv run python orchestrator/src/orchestrator/client.py
+
+llm:
+	uv run python orchestrator/src/orchestrator/planner.py

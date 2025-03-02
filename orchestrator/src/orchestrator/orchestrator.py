@@ -1,7 +1,7 @@
 import asyncio
 import os
 from websockets.asyncio.server import serve
-from websockets.exceptions import ConnectionClosedOK
+from websockets.exceptions import ConnectionClosed
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,17 +15,17 @@ async def handle_incoming_query(websocket):
         async for message in websocket:
             print(f"FROM Client: {message}")
             await websocket.send("Hello from server!")
-    except ConnectionClosedOK:
+    except ConnectionClosed:
         print("Connection closed by client")
 
 
-async def main():
+async def server():
     async with serve(handler=handle_incoming_query, host=host, port=port) as server:
         await server.serve_forever()
 
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        asyncio.run(server())
     except KeyboardInterrupt:
         print("\nServer stopped")
