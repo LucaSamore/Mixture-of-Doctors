@@ -5,6 +5,7 @@ from typing import List
 from enum import Enum
 from dotenv import load_dotenv
 import os
+import string
 
 load_dotenv()
 
@@ -55,11 +56,19 @@ def get_diseases() -> List[str]:
 
 
 def classify_query(query: Query) -> Grade | None:
+    params = {"query": query.question, "diseases": get_diseases()}
+
+    with open("./orchestrator/src/orchestrator/prompts/classification.md", "r") as f:
+        template = f.read()
+
+    prompt = string.Template(template).substitute(params)
+
+    print(prompt)
+
     # prepare prompt for query classification
     # make the LLM call -- no streaming
     # parse the output
     # return grade
-    pass
 
 
 def reason(query: Query, grade: Grade) -> None:
@@ -96,4 +105,6 @@ def fetch_user_chat_history(username: str) -> List[str]:
 
 
 if __name__ == "__main__":
-    test_llm_call()
+    # test_llm_call()
+    query = Query(question="What is the cause of diabetes?", username="Luca")
+    classify_query(query)
