@@ -7,7 +7,12 @@ authors = [
     { name = "robertomitugno", email = "roberto.mitugno@studio.unibo.it" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "fastapi>=0.115.11",
+    "motor>=3.7.0",
+    "pydantic>=2.10.6",
+    "uvicorn>=0.34.0",
+]
 
 [project.scripts]
 chat-history = "chat_history:main"
