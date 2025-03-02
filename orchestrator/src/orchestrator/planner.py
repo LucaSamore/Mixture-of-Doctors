@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from ollama import Client
 from typing import List
 from enum import Enum
@@ -19,7 +19,7 @@ model = "llama3.3:latest"
 
 def test_llm_call() -> None:
     res = llm.generate(model=model, prompt="Hello, how are you?")
-    print(res)
+    print(res.response)
 
 
 action_template = ...
@@ -38,7 +38,7 @@ class Grade(Enum):
     HARD = "HARD"
 
 
-class Classification(BaseModel):
+class ClassificationResult(BaseModel):
     classification: Grade
     diseases: List[str]
     reasoning: str
@@ -55,20 +55,26 @@ def get_diseases() -> List[str]:
     return ["diabetes", "malaria", "hypertension"]
 
 
-def classify_query(query: Query) -> Grade | None:
+def classify_query(query: Query) -> ClassificationResult | None:
     params = {"query": query.question, "diseases": get_diseases()}
 
     with open("./orchestrator/src/orchestrator/prompts/classification.md", "r") as f:
         template = f.read()
 
     prompt = string.Template(template).substitute(params)
-
-    print(prompt)
-
-    # prepare prompt for query classification
-    # make the LLM call -- no streaming
-    # parse the output
-    # return grade
+    res = llm.generate(model=model, prompt=prompt)
+    print(res.response)
+    try:
+        classification_result = ClassificationResult.model_validate_json(res.response)
+        print("===RESULT===")
+        print(classification_result.classification)
+        print(classification_result.reasoning)
+        return classification_result
+    except ValidationError as ve:
+        # parsing the output may fail due to the llm response wrongly formatted
+        # ! TODO: iterate classification until a valid response is obtained
+        print(ve)
+        return None
 
 
 def reason(query: Query, grade: Grade) -> None:

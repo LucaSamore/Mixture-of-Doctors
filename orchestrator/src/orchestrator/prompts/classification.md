@@ -24,9 +24,8 @@ Analyze the medical query below and classify it into one of three categories:
 \${query}
 
 ## Output Format
-Respond with a JSON object using the following structure:
+IMPORTANT: Return ONLY a valid JSON object without any surrounding text, explanations, or commentary. Your complete response must be a single parseable JSON object with the following structure:
 
-```json
 {
   "classification": "EASY|MEDIUM|HARD",
   "diseases": ["Disease1", "Disease2"], 
