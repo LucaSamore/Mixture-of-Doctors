@@ -1,11 +1,11 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+from dotenv import load_dotenv
 
-# Global variables for the client and the database
-mongodb_url: str = os.getenv(
-    "MONGODB_URL", "mongodb+srv://robertomitugno:123@databasemod.gnszi.mongodb.net/"
-)
-database_name: str = os.getenv("DATABASE_NAME", "Mixture-of-Doctors")
+load_dotenv()
+
+mongodb_url = os.getenv("MONGODB_URL")
+database_name = os.getenv("MONGODB_DB")
 
 client: AsyncIOMotorClient
 db = None
@@ -24,6 +24,8 @@ async def connect_to_mongo():
     """
     global client, db
     client = AsyncIOMotorClient(mongodb_url)
+    if database_name is None:
+        raise ValueError("DATABASE_NAME environment variable is not set")
     db = client[database_name]
 
     try:
