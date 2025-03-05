@@ -4,7 +4,7 @@ from chat_history.models.request import ConversationModel, ConversationItem
 
 class ConversationService:
     """
-    Service for managing user conversations
+    Service for managing user conversations with transaction support
     """
 
     def __init__(self, db):
@@ -24,21 +24,35 @@ class ConversationService:
         Returns:
             ConversationModel: The updated conversation with the new item
         """
-        existing_conversation = await self.get_conversation_by_username(username)
 
-        if existing_conversation:
-            existing_conversation.conversation.append(conversation_item)
-        else:
-            existing_conversation = ConversationModel(
-                username=username, conversation=[conversation_item]
+        async def transaction_callback(session):
+            existing_conversation = await self.collection.find_one(
+                {"username": username}, session=session
             )
 
-        conversation_dict = existing_conversation.model_dump()
-        await self.collection.update_one(
-            {"username": username}, {"$set": conversation_dict}, upsert=True
-        )
+            if existing_conversation:
+                existing_conversation = ConversationModel(**existing_conversation)
+                existing_conversation.conversation.append(conversation_item)
+                conversation_dict = existing_conversation.model_dump()
+            else:
+                conversation_dict = ConversationModel(
+                    username=username, conversation=[conversation_item]
+                ).model_dump()
 
-        return existing_conversation
+            await self.collection.update_one(
+                {"username": username},
+                {"$set": conversation_dict},
+                upsert=True,
+                session=session,
+            )
+
+            return conversation_dict
+
+        async with await self.db.client.start_session() as session:
+            async with session.start_transaction():
+                conversation_dict = await transaction_callback(session)
+
+                return ConversationModel(**conversation_dict)
 
     async def get_conversation_by_username(
         self, username: str
@@ -55,7 +69,7 @@ class ConversationService:
         doc = await self.collection.find_one({"username": username})
 
         if doc:
-            doc.pop("_id")
+            doc.pop("_id", None)
             return ConversationModel(**doc)
 
         return None
