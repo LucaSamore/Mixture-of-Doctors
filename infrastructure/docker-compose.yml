@@ -1,3 +1,4 @@
+version: '3'
 services:
   kafka:
     image: bitnami/kafka:latest
@@ -27,6 +28,16 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  kafka-init:
+    image: bitnami/kafka:latest
+    depends_on:
+      - kafka
+    entrypoint: ["/bin/bash", "/init-scripts/create-topics.sh"]
+    volumes:
+      - ./init-scripts:/init-scripts
+    networks:
+      - kafka-net
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
