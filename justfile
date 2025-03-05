@@ -25,10 +25,10 @@ cli:
     uv run python frontend/cli/src/cli/client.py
 
 orchestrator:
-	uv run python orchestrator/src/orchestrator/orchestrator.py
+	uv run python -m orchestrator.src.orchestrator.server
 
 client:
 	uv run python orchestrator/src/orchestrator/client.py
 
 llm:
-	uv run python orchestrator/src/orchestrator/planner.py
+	uv run python -m orchestrator.src.orchestrator.planning

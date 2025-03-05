@@ -10,12 +10,11 @@ port = (lambda p: int(p) if p else None)(os.getenv("WEBSOCKET_SERVER_PORT"))
 
 def main():
     uri = f"ws://{host}:{port}"
-    with connect(uri) as websocket:
-        for i in range(5):
-            print(f"{i + 1}: Hello from client!")
-            websocket.send(f"{i + 1}: Hello from client!")
-            msg = websocket.recv()
-            print(f"FROM Server: {msg}")
+    with connect(uri, ping_interval=None) as websocket:
+        query = "What is the best treatment for diabetes?"
+        websocket.send(query)
+        message = websocket.recv()
+        print(f"FROM Server: {message}")
 
 
 if __name__ == "__main__":
