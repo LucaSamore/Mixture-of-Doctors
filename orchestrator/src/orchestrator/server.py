@@ -4,6 +4,7 @@ from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 from dotenv import load_dotenv
 from .planning import reason, act
+from .utilities import logger
 
 load_dotenv()
 
@@ -14,14 +15,18 @@ port = (lambda p: int(p) if p else None)(os.getenv("WEBSOCKET_SERVER_PORT"))
 async def handle_incoming_query(websocket):
     try:
         async for message in websocket:
+            logger.info(f"Received query: {message}")
             outcome = reason(message)
             if outcome is not None:
                 act(outcome)
             else:
-                await websocket.send("An error occurred while reasoning")
+                error = "An error occurred while reasoning"
+                await websocket.send(error)
+                logger.error(error)
             await websocket.send("Hello from server!")
+            logger.info("Response sent")
     except ConnectionClosed:
-        print("Connection closed by client")
+        logger.error("Connection closed by client")
 
 
 async def server():
