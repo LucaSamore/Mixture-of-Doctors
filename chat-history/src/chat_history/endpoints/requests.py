@@ -47,3 +47,17 @@ async def get_user_conversation(username: str, db=Depends(get_database)):
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     return conversation
+
+
+@router.delete("/{username}", status_code=204)
+async def delete_user_conversation(username: str, db=Depends(get_database)):
+    """
+    Delete all conversation items for a given username
+
+    - **username**: Username of the user whose conversation history should be deleted
+    """
+    conversation_service = ConversationService(db)
+    deleted = await conversation_service.delete_conversation_by_username(username)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return

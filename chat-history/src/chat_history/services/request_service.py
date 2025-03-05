@@ -73,3 +73,16 @@ class ConversationService:
             return ConversationModel(**doc)
 
         return None
+
+    async def delete_conversation_by_username(self, username: str) -> bool:
+        """
+        Delete all conversation items for a given username
+
+        Args:
+            username: Username of the user whose conversation history should be deleted
+
+        Returns:
+            bool: True if a conversation was deleted, False if no conversation was found
+        """
+        result = await self.collection.delete_one({"username": username})
+        return result.deleted_count > 0
