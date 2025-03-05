@@ -1,6 +1,6 @@
 from chat_history.database import get_database
-from chat_history.models.request import ConversationModel, ConversationItem
-from chat_history.services.request_service import ConversationService
+from chat_history.collection_model import ConversationModel, ConversationItem
+from chat_history.services import ConversationService
 from fastapi import APIRouter, HTTPException, Depends
 
 

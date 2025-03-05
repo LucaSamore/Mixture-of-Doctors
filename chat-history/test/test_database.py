@@ -6,8 +6,8 @@ import pytest_asyncio
 from pydantic import ValidationError
 from unittest.mock import AsyncMock, Mock
 
-from chat_history.services.request_service import ConversationService
-from chat_history.models.request import ConversationItem
+from chat_history.services import ConversationService
+from chat_history.collection_model import ConversationItem
 
 
 @asynccontextmanager

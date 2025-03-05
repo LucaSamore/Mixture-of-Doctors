@@ -1,5 +1,5 @@
 from typing import Optional
-from chat_history.models.request import ConversationModel, ConversationItem
+from chat_history.collection_model import ConversationModel, ConversationItem
 
 
 class ConversationService:
