@@ -8,8 +8,8 @@ class ConversationItem(BaseModel):
     Model for a single conversation item
     """
 
-    question: str = Field(..., description="Question sent by the user")
-    answer: str = Field(..., description="Answer provided to the user")
+    question: str = Field(..., description="Question sent by the user", min_length=1)
+    answer: str = Field(..., description="Answer provided to the user", min_length=1)
     timestamp: datetime = Field(
         default_factory=datetime.now,
         description="Date and time of the conversation item",
@@ -32,7 +32,7 @@ class ConversationModel(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "username": "Luca",
+                "username": "Roberto",
                 "created_at": datetime.now().isoformat(),
                 "conversation": [
                     {
