@@ -1,10 +1,9 @@
-import asyncio
-import os
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 from dotenv import load_dotenv
 from .planning import reason, act
 from .utilities import logger
+import os
 
 load_dotenv()
 
@@ -31,11 +30,5 @@ async def handle_incoming_query(websocket):
 
 async def server():
     async with serve(handler=handle_incoming_query, host=host, port=port) as server:
+        logger.info(f"Server started at ws://{host}:{port}")
         await server.serve_forever()
-
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(server())
-    except KeyboardInterrupt:
-        print("\nServer stopped")

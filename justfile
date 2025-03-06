@@ -25,7 +25,7 @@ cli:
     uv run python frontend/cli/src/cli/client.py
 
 orchestrator:
-	uv run python -m orchestrator.server
+	uv run orchestrator
 
 client:
 	uv run python orchestrator/src/orchestrator/client.py
