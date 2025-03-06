@@ -2,6 +2,7 @@ from .doctors import DiseaseQuestions, get_diseases
 from enum import Enum
 from pydantic import BaseModel, ValidationError
 from shared.llm import llm, build_prompt
+from shared.broker import producer
 from .utilities import logger, PromptTemplate
 
 
@@ -30,11 +31,22 @@ def reason(query: str) -> ReasoningOutcome | None:
     return None
 
 
-def act(outcome: ReasoningOutcome) -> None:
-    # pattern match against the outcome
-    # call the appropriate function, i.e. make tool call
-    print("Acting...")
-    pass
+def act(outcome: ReasoningOutcome, query: str) -> None:
+    match outcome.classification:
+        case Grade.EASY:
+            answer_directly(query)
+        case Grade.MEDIUM:
+            disease_question = outcome.diseases[0]
+            producer.send(
+                disease_question.disease,
+                { "test": disease_question.question }
+            )
+        case Grade.HARD:
+            for disease_question in outcome.diseases:
+                producer.send(
+                    disease_question.disease,
+                    { "test": disease_question.question }
+                )
 
 
 def answer_directly(query: str) -> None:

@@ -17,7 +17,7 @@ async def handle_incoming_query(websocket):
             logger.info(f"Received query: {message}")
             outcome = reason(message)
             if outcome is not None:
-                act(outcome)
+                act(outcome, message)
             else:
                 error = "An error occurred while reasoning"
                 await websocket.send(error)

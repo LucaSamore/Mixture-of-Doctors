@@ -25,6 +25,7 @@ cli:
     uv run python frontend/cli/src/cli/client.py
 
 orchestrator:
+	uv sync --all-packages --reinstall --quiet
 	uv run orchestrator
 
 client:

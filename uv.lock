@@ -132,6 +132,15 @@ wheels = [
 ]
 
 [[package]]
+name = "kafka-python"
+version = "2.0.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/ea/a084e240b0c2d3cc79b22c3ad8e7ed23293d362f22aaebd24e25bb38f21d/kafka_python-2.0.6.tar.gz", hash = "sha256:3ac47e7c41a67a1c23f1856c1953594440bb3d9cd532ad70e353982724e5d52d", size = 282472 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/64/28/348b014ccbc13acb2000f136b8d525de94ba1a5e6c4b558a9a535baf010a/kafka_python-2.0.6-py2.py3-none-any.whl", hash = "sha256:a2fdb00eaea7a827f5f74693365af6b615ff0795860261d8ebaad2bb5bc73e81", size = 252105 },
+]
+
+[[package]]
 name = "loguru"
 version = "0.7.3"
 source = { registry = "https://pypi.org/simple" }
@@ -293,6 +302,7 @@ name = "shared"
 version = "0.1.0"
 source = { editable = "shared" }
 dependencies = [
+    { name = "kafka-python" },
     { name = "ollama" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -300,6 +310,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "kafka-python", specifier = ">=2.0.6" },
     { name = "ollama", specifier = ">=0.4.7" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
