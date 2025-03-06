@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Init scripts
+init-scripts/
+
 .env
 
 *.log
