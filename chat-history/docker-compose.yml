@@ -1,0 +1,59 @@
+# Rimuovere la dichiarazione di versione come suggerito dal warning
+services:
+  chat-history:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongo1  # Dipendenza corretta al primo nodo del replica set
+    environment:
+      # Stringa di connessione per replica set
+      - MONGODB_URL=mongodb://mongo1:27017,mongo2:27018,mongo3:27019/chat-history?replicaSet=rs0
+      - MONGODB_DB=chat-history
+
+  mongo1:
+    image: mongo:latest
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - 27017:27017
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo1:27017',priority:1},{_id:1,host:'mongo2:27018',priority:0.5},{_id:2,host:'mongo3:27019',priority:0.5}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      retries: 30
+    volumes:
+      - "mongo1_data:/data/db"
+
+  mongo2:
+    image: mongo:latest
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27018"]
+    ports:
+      - 27018:27018
+    healthcheck:
+      test: echo "rs.status()" | mongosh --port 27018 --quiet
+      interval: 5s
+      timeout: 30s
+      retries: 30
+    volumes:
+      - "mongo2_data:/data/db"
+
+  mongo3:
+    image: mongo:latest
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27019"]
+    ports:
+      - 27019:27019
+    healthcheck:
+      test: echo "rs.status()" | mongosh --port 27019 --quiet
+      interval: 5s
+      timeout: 30s
+      retries: 30
+    volumes:
+      - "mongo3_data:/data/db"
+
+volumes:
+  mongo1_data:
+  mongo2_data:
+  mongo3_data:
