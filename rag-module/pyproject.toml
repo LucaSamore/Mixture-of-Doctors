@@ -1,0 +1,17 @@
+[project]
+name = "rag-module"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Lucia Castellucci", email = "lucia.castellucci2@studio.unibo.it" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+rag-module = "rag_module:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

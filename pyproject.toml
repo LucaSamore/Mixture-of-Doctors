@@ -16,3 +16,6 @@ exclude = [".venv"]
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
+
+[tool.uv.workspace]
+members = ["rag-module"]
