@@ -1,0 +1,21 @@
+services:
+  # Generic RAG service that will be scaled with different environment variables
+  rag:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - PORT=8080
+      # RAG_DOMAIN will be overridden at runtime
+      - RAG_DOMAIN=${RAG_DOMAIN:-disease1}
+    volumes:
+      - ../config.json:/app/config.json
+    networks:
+      - rag-network
+    deploy:
+      # Allows starting multiple instances of the same service
+      replicas: 1
+
+networks:
+  rag-network:
+    driver: bridge
