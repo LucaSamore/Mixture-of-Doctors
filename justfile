@@ -22,3 +22,6 @@ format:
 
 redis:
 	docker-compose --env-file ./infrastructure/.env -f ./infrastructure/redis/docker-compose.yml up
+
+post:
+	@curl -X POST "http://127.0.0.1:8000/" -H "Content-Type: application/json" -d '{"user_id": "Luca", "query": "Hello?"}'
