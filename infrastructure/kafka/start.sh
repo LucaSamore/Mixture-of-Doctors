@@ -63,7 +63,8 @@ fi
 
 # Start containers
 echo -e "${YELLOW}Starting Kafka and UI containers...${NC}"
-docker-compose up -d
+pwd
+docker-compose --env-file ../.env up -d
 
 # Wait for Kafka to start
 echo -e "${YELLOW}Waiting for Kafka to start...${NC}"

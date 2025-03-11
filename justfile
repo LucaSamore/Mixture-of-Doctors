@@ -2,7 +2,6 @@ alias s := setup
 alias p := pre_commit
 alias l := lint
 alias f := format
-alias o := orchestrator
 
 install:
 	uv sync --all-packages
@@ -21,12 +20,5 @@ lint:
 format:
 	uv run ruff format
 
-cli:
-    uv run python frontend/cli/src/cli/client.py
-
-orchestrator:
-	uv sync --all-packages --reinstall --quiet
-	uv run orchestrator
-
-client:
-	uv run python orchestrator/src/orchestrator/client.py
+redis:
+	docker-compose --env-file ./infrastructure/.env -f ./infrastructure/redis/docker-compose.yml up

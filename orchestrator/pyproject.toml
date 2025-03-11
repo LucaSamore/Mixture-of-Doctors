@@ -9,12 +9,12 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "websockets>=15.0",
-    "shared",
     "loguru>=0.7.3",
+    "redis>=5.2.1",
+    "fastapi[standard]>=0.115.11",
+    "kafka-python>=2.0.6",
+    "ollama>=0.4.7",
 ]
-
-[tool.uv.sources]
-shared = { workspace = true }
 
 [project.scripts]
 orchestrator = "orchestrator:main"

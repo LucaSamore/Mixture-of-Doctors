@@ -1,10 +1,10 @@
 services:
   redis:
-    image: redis:latest
+    image: redis:${REDIS_VERSION}
     container_name: redis
     command: redis-server --requirepass ${REDIS_PASSWORD:-redispassword} --appendonly yes
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:${REDIS_PORT}"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -19,10 +19,10 @@ services:
       retries: 3
 
   redis-insight:
-    image: redislabs/redisinsight:latest
+    image: redislabs/redisinsight:${REDIS_INSIGHT_VERSION}
     container_name: redis-insight
     ports:
-      - "5540:5540"
+      - "${REDIS_INSIGHT_PORT}:${REDIS_INSIGHT_PORT}"
     volumes:
       - redis_insight_data:/db
     restart: unless-stopped
