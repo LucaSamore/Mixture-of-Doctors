@@ -1,0 +1,42 @@
+services:
+  redis:
+    image: redis:${REDIS_VERSION}
+    container_name: redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redispassword} --appendonly yes
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - redis-network
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispassword}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redispassword}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  redis-insight:
+    image: redislabs/redisinsight:${REDIS_INSIGHT_VERSION}
+    container_name: redis-insight
+    ports:
+      - "${REDIS_INSIGHT_PORT}:${REDIS_INSIGHT_PORT}"
+    volumes:
+      - redis_insight_data:/db
+    restart: unless-stopped
+    depends_on:
+      - redis
+    networks:
+      - redis-network
+
+networks:
+  redis-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local
+  redis_insight_data:
+    driver: local
