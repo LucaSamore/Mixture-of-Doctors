@@ -61,10 +61,14 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
+export $(grep -v '^#' ../.env | xargs)
+
 # Start containers
 echo -e "${YELLOW}Starting Kafka and UI containers...${NC}"
 pwd
-docker-compose --env-file ../.env up -d
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d --force-recreate
 
 # Wait for Kafka to start
 echo -e "${YELLOW}Waiting for Kafka to start...${NC}"
