@@ -1,0 +1,69 @@
+version: '3'
+services:
+  kafka:
+    image: bitnami/kafka:${KAFKA_VERSION}
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "${KAFKA_PORT}:${KAFKA_PORT}"
+      - "${KAFKA_EXTERNAL_PORT}:${KAFKA_EXTERNAL_PORT}"
+    environment:
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:${KAFKA_PORT},CONTROLLER://:9093,EXTERNAL://:${KAFKA_EXTERNAL_PORT}
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:${KAFKA_PORT},EXTERNAL://localhost:${KAFKA_EXTERNAL_PORT}
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_KRAFT_CLUSTER_ID=${KAFKA_KRAFT_CLUSTER_ID}
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    volumes:
+      - kafka_data:/bitnami/kafka
+    networks:
+      - kafka-net
+    healthcheck:
+      test: kafka-topics.sh --bootstrap-server localhost:${KAFKA_PORT} --list || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  kafka-init:
+    image: bitnami/kafka:${KAFKA_VERSION}
+    depends_on:
+      - kafka
+    entrypoint: ["/bin/bash", "/init-scripts/create-topics.sh"]
+    volumes:
+      - ./init-scripts:/init-scripts
+    networks:
+      - kafka-net
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "${KAFKA_UI_PORT}:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=kafka-kraft-cluster
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:${KAFKA_PORT}
+      - KAFKA_CLUSTERS_0_METRICS_PORT=${KAFKA_PORT}
+      - SERVER_SERVLET_CONTEXT_PATH=/
+    depends_on:
+      - kafka
+    networks:
+      - kafka-net
+    healthcheck:
+      test: wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  kafka_data:
+    driver: local
+
+networks:
+  kafka-net:
+    driver: bridge

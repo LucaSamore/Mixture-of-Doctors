@@ -11,3 +11,5 @@ wheels/
 
 # Project's files
 frontend/cli/src/cli/username.txt
+# Init scripts
+init-scripts/
