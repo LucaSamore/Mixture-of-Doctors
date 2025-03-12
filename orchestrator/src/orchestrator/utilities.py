@@ -6,8 +6,10 @@ from ollama import Client
 import os
 import json
 import string
+import redis
 
 load_dotenv()
+load_dotenv("./infrastructure/redis/.env")
 
 
 class PromptTemplate(Enum):
@@ -17,11 +19,16 @@ class PromptTemplate(Enum):
 logger.add("./orchestrator/logs/orchestrator.log", rotation="10 MB")
 
 
-host = os.getenv("CLUSTER_HOST")
-port = (lambda p: int(p) if p else None)(os.getenv("CLUSTER_PORT"))
+cluster_host = os.getenv("CLUSTER_HOST")
+cluster_port = (lambda p: int(p) if p else None)(os.getenv("CLUSTER_PORT"))
+llm = Client(host=f"http://{cluster_host}:{cluster_port}")
 
 
-llm = Client(host=f"http://{host}:{port}")
+redis_password = os.getenv("REDIS_PASSWORD")
+redis_port = (lambda p: int(p) if p else 6379)(os.getenv("REDIS_PORT"))
+redis_client = redis.Redis(
+    host="localhost", port=redis_port, password=redis_password, decode_responses=True
+)
 
 
 producer = KafkaProducer(

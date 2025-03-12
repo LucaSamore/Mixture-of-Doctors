@@ -1,10 +1,23 @@
 from enum import Enum
 from pydantic import BaseModel
-from .utilities import logger, PromptTemplate, prepare_prompt, llm, producer, diseases
+from .utilities import (
+    logger,
+    PromptTemplate,
+    prepare_prompt,
+    llm,
+    producer,
+    diseases,
+    redis_client,
+)
 from typing import List
 
 
 REASONING_ATTEMPTS = 5
+
+
+class ChatbotQuery(BaseModel):
+    user_id: str
+    query: str
 
 
 class PlanningException(Exception):
@@ -19,15 +32,15 @@ class ActingException(PlanningException):
     pass
 
 
-class DiseaseSpecificQuestion(BaseModel):
-    disease: str
-    question: str
-
-
 class Grade(Enum):
     EASY = "EASY"
     MEDIUM = "MEDIUM"
     HARD = "HARD"
+
+
+class DiseaseSpecificQuestion(BaseModel):
+    disease: str
+    question: str
 
 
 class ReasoningOutcome(BaseModel):
@@ -36,8 +49,8 @@ class ReasoningOutcome(BaseModel):
     reasoning: str
 
 
-async def reason(query: str) -> ReasoningOutcome:
-    params = {"query": query, "diseases": diseases}
+async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
+    params = {"query": chatbot_query.query, "diseases": diseases}
     prompt = prepare_prompt(template=PromptTemplate.PLANNING.value, **params)
     for i in range(REASONING_ATTEMPTS):
         try:
@@ -50,11 +63,11 @@ async def reason(query: str) -> ReasoningOutcome:
     raise ReasoningException(f"Could not reason after {REASONING_ATTEMPTS} attempt(s)")
 
 
-async def act(outcome: ReasoningOutcome, query: str) -> None:
+async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
     try:
         match outcome.classification:
             case Grade.EASY:
-                answer_immediately(query)
+                await answer_immediately(chatbot_query)
             case Grade.MEDIUM:
                 dsq: DiseaseSpecificQuestion = outcome.diseases[0]
                 producer.send(dsq.disease, {"test": dsq.question})
@@ -66,5 +79,19 @@ async def act(outcome: ReasoningOutcome, query: str) -> None:
         raise ActingException("Action not performed")
 
 
-def answer_immediately(_: str) -> None:
-    raise NotImplementedError("Immediate answering not implemented yet")
+async def answer_immediately(chatbot_query: ChatbotQuery) -> None:
+    # ! TODO: create prompt template
+    stream = llm.generate(
+        model="llama3.3:latest", prompt=chatbot_query.query, stream=True
+    )
+    for chunk in stream:
+        logger.info(chunk.response)
+        entry_id = redis_client.xadd(
+            name=chatbot_query.user_id,
+            fields={
+                "query": chatbot_query.query,
+                "response": chunk.response,
+                "done": str(chunk.done),
+            },
+        )
+        logger.info(f"Entry added with ID: {entry_id}")

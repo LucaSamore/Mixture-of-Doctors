@@ -1,12 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from .planning import reason, act, PlanningException
-
-
-class ChatbotRequest(BaseModel):
-    user_id: str
-    query: str
+from .planning import reason, act, PlanningException, ChatbotQuery
 
 
 app = FastAPI()
@@ -18,6 +12,6 @@ async def planning_exception_handler(_: Request, exc: PlanningException):
 
 
 @app.post("/", status_code=204)
-async def handle_request(request: ChatbotRequest):
-    outcome = await reason(request.query)
-    await act(outcome, request.query)
+async def handle_request(request: ChatbotQuery):
+    outcome = await reason(request)
+    await act(outcome, request)
