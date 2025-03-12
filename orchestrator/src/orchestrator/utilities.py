@@ -16,10 +16,13 @@ class PromptTemplate(Enum):
 
 logger.add("./orchestrator/logs/orchestrator.log", rotation="10 MB")
 
+
 host = os.getenv("CLUSTER_HOST")
 port = (lambda p: int(p) if p else None)(os.getenv("CLUSTER_PORT"))
 
+
 llm = Client(host=f"http://{host}:{port}")
+
 
 producer = KafkaProducer(
     bootstrap_servers=os.getenv("KAFKA_BROKER"),
@@ -27,7 +30,11 @@ producer = KafkaProducer(
 )
 
 
-def build_prompt(template: str, **kwargs) -> str:
+# should read from config.json
+diseases = ["diabetes", "multiple sclerosis", "hypertension"]
+
+
+def prepare_prompt(template: str, **kwargs) -> str:
     with open(template, "r") as f:
         content = f.read()
     return string.Template(content).substitute(kwargs)

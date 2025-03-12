@@ -1,7 +1,27 @@
-from .doctors import DiseaseQuestions, get_diseases
 from enum import Enum
-from pydantic import BaseModel, ValidationError
-from .utilities import logger, PromptTemplate, build_prompt, llm, producer
+from pydantic import BaseModel
+from .utilities import logger, PromptTemplate, prepare_prompt, llm, producer, diseases
+from typing import List
+
+
+REASONING_ATTEMPTS = 5
+
+
+class PlanningException(Exception):
+    pass
+
+
+class ReasoningException(PlanningException):
+    pass
+
+
+class ActingException(PlanningException):
+    pass
+
+
+class DiseaseSpecificQuestion(BaseModel):
+    disease: str
+    question: str
 
 
 class Grade(Enum):
@@ -12,40 +32,39 @@ class Grade(Enum):
 
 class ReasoningOutcome(BaseModel):
     classification: Grade
-    diseases: DiseaseQuestions
+    diseases: List[DiseaseSpecificQuestion]
     reasoning: str
 
 
-def reason(query: str) -> ReasoningOutcome | None:
-    params = {"query": query, "diseases": get_diseases()}
-    prompt = build_prompt(template=PromptTemplate.PLANNING.value, **params)
-    for _ in range(5):
-        res = llm.generate(model="llama3.3:latest", prompt=prompt)
-        logger.info(res.response)
+async def reason(query: str) -> ReasoningOutcome:
+    params = {"query": query, "diseases": diseases}
+    prompt = prepare_prompt(template=PromptTemplate.PLANNING.value, **params)
+    for i in range(REASONING_ATTEMPTS):
         try:
-            return ReasoningOutcome.model_validate_json(res.response)
-        except ValidationError as ve:
-            logger.error(ve)
-    return None
+            logger.info(f"Reasoning attempt #{i + 1}/{REASONING_ATTEMPTS}")
+            generate_response = llm.generate(model="llama3.3:latest", prompt=prompt)
+            logger.info(generate_response)
+            return ReasoningOutcome.model_validate_json(generate_response.response)
+        except Exception as e:
+            logger.error(f"Error on attempt #{i + 1}/{REASONING_ATTEMPTS}: {e}")
+    raise ReasoningException(f"Could not reason after {REASONING_ATTEMPTS} attempt(s)")
 
 
-def act(outcome: ReasoningOutcome, query: str) -> None:
-    match outcome.classification:
-        case Grade.EASY:
-            answer_directly(query)
-        case Grade.MEDIUM:
-            disease_question = outcome.diseases[0]
-            producer.send(disease_question.disease, {"test": disease_question.question})
-        case Grade.HARD:
-            for disease_question in outcome.diseases:
-                producer.send(
-                    disease_question.disease, {"test": disease_question.question}
-                )
+async def act(outcome: ReasoningOutcome, query: str) -> None:
+    try:
+        match outcome.classification:
+            case Grade.EASY:
+                answer_immediately(query)
+            case Grade.MEDIUM:
+                dsq: DiseaseSpecificQuestion = outcome.diseases[0]
+                producer.send(dsq.disease, {"test": dsq.question})
+            case Grade.HARD:
+                for dsq in outcome.diseases:
+                    producer.send(dsq.disease, {"test": dsq.question})
+    except Exception as e:
+        logger.error(f"Error while trying to perform an action: {e}")
+        raise ActingException("Action not performed")
 
 
-def answer_directly(query: str) -> None:
-    # generates a response for easy queries
-    # prepare prompt for generating the response
-    # make the LLM call -- streaming
-    # send the stream to the channel
-    pass
+def answer_immediately(_: str) -> None:
+    raise NotImplementedError("Immediate answering not implemented yet")
