@@ -49,6 +49,13 @@ class ReasoningOutcome(BaseModel):
     reasoning: str
 
 
+class ProducerMessage(BaseModel):
+    user_id: str
+    original_query: str
+    rag_query: str
+    stream: bool
+
+
 async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
     params = {"query": chatbot_query.query, "diseases": diseases}
     prompt = prepare_prompt(template=PromptTemplate.PLANNING.value, **params)
@@ -64,16 +71,27 @@ async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
 
 
 async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
+    def create_producer_message(rag_query: str, stream: bool) -> ProducerMessage:
+        return ProducerMessage(
+            user_id=chatbot_query.user_id,
+            original_query=chatbot_query.query,
+            rag_query=rag_query,
+            stream=stream,
+        )
+
     try:
         match outcome.classification:
             case Grade.EASY:
                 await answer_immediately(chatbot_query)
             case Grade.MEDIUM:
-                dsq: DiseaseSpecificQuestion = outcome.diseases[0]
-                producer.send(dsq.disease, {"test": dsq.question})
+                msg = create_producer_message(
+                    rag_query=chatbot_query.query, stream=True
+                )
+                producer.send(topic=outcome.diseases[0], value=msg.model_dump())
             case Grade.HARD:
                 for dsq in outcome.diseases:
-                    producer.send(dsq.disease, {"test": dsq.question})
+                    msg = create_producer_message(rag_query=dsq.question, stream=False)
+                    producer.send(topic=dsq.disease, value=msg.model_dump())
     except Exception as e:
         logger.error(f"Error while trying to perform an action: {e}")
         raise ActingException("Action not performed")
