@@ -14,6 +14,7 @@ load_dotenv("./infrastructure/redis/.env")
 
 class PromptTemplate(Enum):
     PLANNING = "./orchestrator/src/orchestrator/prompts/planning.md"
+    EASY_QUERIES = "./orchestrator/src/orchestrator/prompts/easy_queries.md"
 
 
 logger.add("./orchestrator/logs/orchestrator.log", rotation="10 MB")

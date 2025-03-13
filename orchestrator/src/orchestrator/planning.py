@@ -98,10 +98,9 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
 
 
 async def answer_immediately(chatbot_query: ChatbotQuery) -> None:
-    # ! TODO: create prompt template
-    stream = llm.generate(
-        model="llama3.3:latest", prompt=chatbot_query.query, stream=True
-    )
+    params = {"query": chatbot_query.query}
+    prompt = prepare_prompt(template=PromptTemplate.EASY_QUERIES.value, **params)
+    stream = llm.generate(model="llama3.3:latest", prompt=prompt, stream=True)
     for chunk in stream:
         logger.info(chunk.response)
         entry_id = redis_client.xadd(
