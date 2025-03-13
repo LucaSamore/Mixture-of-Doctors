@@ -1,7 +1,6 @@
 import typer
-import asyncio
 from typer import Option
-from connection import print_response
+from cli.stream_client import send_request
 from cli import write_username_to_file, read_username_from_file
 
 app = typer.Typer()
@@ -59,11 +58,12 @@ def ask(
         typer.echo(
             "Before asking a question, it is necessary to start the chat and authenticate. Launch the command 'chat' or 'restore' or 'new'"
         )
+    else:
+        send_request(question, username_from_file, typer.echo)
     if not oneshot:
         # save question and answer in chat history (db)
         # print chat history
         pass
-    asyncio.run(print_response(username_from_file, question, typer.echo))
 
 
 @mod_app.command()
