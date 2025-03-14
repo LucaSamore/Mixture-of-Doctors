@@ -48,7 +48,7 @@ def create_redis_connection() -> Redis | None:
         redis_client.ping()
         return redis_client
     except ConnectionError as e:
-        logger.error("Failed to connect to Redis: {}".format(e))
+        logger.error(f"Failed to connect to Redis: {e}")
         return None
 
 
@@ -58,7 +58,7 @@ def send_request(query: Query, user_id: str, print_fn) -> None:
     payload = {"query": query, "user_id": user_id}
 
     try:
-        logger.info("Sending request to {}".format(ORCHESTRATOR_URL))
+        logger.info(f"Sending request to {ORCHESTRATOR_URL}")
         response = requests.post(
             ORCHESTRATOR_URL, json=payload, timeout=REQUEST_TIMEOUT
         )
@@ -69,23 +69,17 @@ def send_request(query: Query, user_id: str, print_fn) -> None:
                 print_fn("Request accepted, waiting for response...")
                 read_from_stream(user_id, print_fn)
             case 500:
-                logger.error(
-                    "Server error: {} - {}".format(response.status_code, response.text)
-                )
+                logger.error(f"Server error: {response.status_code} - {response.text}")
                 print_fn(
-                    "The server encountered a problem. Status code: {}".format(
-                        response.status_code
-                    ),
+                    f"The server encountered a problem. Status code: {response.status_code}",
                     "error",
                 )
             case _:
                 logger.warning(
-                    "Unexpected status code: {} - {}".format(
-                        response.status_code, response.text
-                    )
+                    f"Unexpected status code: {response.status_code} - {response.text}"
                 )
                 print_fn(
-                    "Unexpected response (status {})".format(response.status_code),
+                    f"Unexpected response (status {response.status_code})",
                     "warning",
                 )
 
@@ -94,8 +88,8 @@ def send_request(query: Query, user_id: str, print_fn) -> None:
         print_fn("Request timed out. Please try again later.", "error")
 
     except requests.RequestException as e:
-        logger.error("Request failed: {}".format(e))
-        print_fn("Failed to send request: {}".format(str(e)), "error")
+        logger.error(f"Request failed: {e}")
+        print_fn(f"Failed to send request: {str(e)}", "error")
 
 
 def read_from_stream(user_id: str, print_fn: Callable) -> None:
@@ -104,18 +98,16 @@ def read_from_stream(user_id: str, print_fn: Callable) -> None:
     redis_client = create_redis_connection()
     if redis_client is None:
         return
-    logger.debug("Reading from stream key: {}".format(user_id))
+    logger.debug(f"Reading from stream key: {user_id}")
 
     read_id = starting_point()
-    logger.debug("Starting from message ID: {}".format(read_id))
+    logger.debug(f"Starting from message ID: {read_id}")
 
     try:
         while True:
             response = redis_client.xread({user_id: read_id}, count=10, block=2000)
 
-            logger.debug(
-                "Response type: {}, Value: {}".format(type(response), response)
-            )
+            logger.debug(f"Response type: {type(response)}, Value: {response}")
 
             if not response:
                 logger.debug("No messages received, waiting...")
@@ -127,12 +119,12 @@ def read_from_stream(user_id: str, print_fn: Callable) -> None:
             read_id = ">"  # Read incoming message from now
 
     except RedisError as e:
-        logger.error("Redis error: {}".format(e))
-        print_fn("Error connecting to message stream: {}".format(str(e)), "error")
+        logger.error(f"Redis error: {e}")
+        print_fn(f"Error connecting to message stream: {str(e)}", "error")
 
     except Exception as e:
         logger.exception("Unexpected error")
-        print_fn("Unexpected error: {}".format(str(e)), "error")
+        print_fn(f"Unexpected error: {str(e)}", "error")
 
 
 def starting_point() -> str:
@@ -143,68 +135,57 @@ def process_redis_response(response: Any, print_fn: Callable) -> None:
     global LAST_MESSAGE_PROCESSED_ID
 
     try:
-        logger.debug("Processing Redis response: {}".format(response))
+        logger.debug(f"Processing Redis response: {response}")
 
-        if not format_is_valid(
-            isinstance(response, list), response, "response", print_fn
-        ):
-            return
+        format_is_valid(isinstance(response, list), response, "response", print_fn)
 
         for stream_entry in response:
-            if not format_is_valid(
+            format_is_valid(
                 (isinstance(stream_entry, list) and len(stream_entry) == 2),
                 stream_entry,
                 "stream_entry",
                 print_fn,
-            ):
-                return
+            )
 
             _, messages = stream_entry
 
-            if not format_is_valid(
-                isinstance(messages, list), messages, "messages", print_fn
-            ):
-                return
+            format_is_valid(isinstance(messages, list), messages, "messages", print_fn)
 
             for message in messages:
-                if not format_is_valid(
+                format_is_valid(
                     (isinstance(message, list) and len(message) == 2),
                     message,
                     "message",
                     print_fn,
-                ):
-                    return
+                )
 
                 message_id, data = message
                 LAST_MESSAGE_PROCESSED_ID = message_id
                 process_message(message_id, data, print_fn)
 
     except Exception as e:
-        logger.exception("Error processing Redis response: {}".format(e))
-        print_fn("Error processing message: {}".format(str(e)), "error")
+        logger.exception(f"Error processing Redis response: {e}")
+        print_fn(f"Error processing message: {str(e)}", "error")
 
 
 def format_is_valid(
     condition: bool, checked_object: Any, checked_name: str, print_fn: Callable
-) -> bool:
+) -> None:
     if not condition:
-        logger.error(
-            "Unexpected Redis {} format: {}".format(checked_name, type(checked_object))
-        )
+        logger.error(f"Unexpected Redis {checked_name} format: {type(checked_object)}")
         print_fn("Received message in unknown format", "error")
-        return False
-    return True
+        raise Exception("Invalid format")
 
 
 def process_message(message_id: str, data: str, print_fn: Callable) -> None:
-    logger.debug("Processing message with ID: {}".format(message_id))
-    logger.debug("Message data: {}".format(data))
-    logger.info("Message received: {}".format(message_id))
+    logger.debug(f"Processing message with ID: {message_id}")
+    logger.debug(f"Message data: {data}")
+    logger.info(f"Message received: {message_id}")
 
     try:
         response_obj = Response.model_validate_json(data)
         print_fn(response_obj.response)
 
     except Exception as e:
-        logger.error("Failed to parse response model: {}".format(e))
-        print_fn("\nMessage: {}".format(data), "error")
+        logger.error(f"Failed to parse response model: {e}")
+        print_fn(f"\nMessage: {data}", "error")
