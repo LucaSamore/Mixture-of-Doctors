@@ -54,6 +54,8 @@ class ProducerMessage(BaseModel):
     original_query: str
     rag_query: str
     stream: bool
+    number: int
+    total: int
 
 
 async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
@@ -71,12 +73,16 @@ async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
 
 
 async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
-    def create_producer_message(rag_query: str, stream: bool) -> ProducerMessage:
+    def create_producer_message(
+        rag_query: str, stream: bool, number: int, total: int
+    ) -> ProducerMessage:
         return ProducerMessage(
             user_id=chatbot_query.user_id,
             original_query=chatbot_query.query,
             rag_query=rag_query,
             stream=stream,
+            number=number,
+            total=total,
         )
 
     try:
@@ -85,12 +91,17 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
                 await answer_immediately(chatbot_query)
             case Grade.MEDIUM:
                 msg = create_producer_message(
-                    rag_query=chatbot_query.query, stream=True
+                    rag_query=chatbot_query.query, stream=True, number=1, total=1
                 )
                 producer.send(topic=outcome.diseases[0], value=msg.model_dump())
             case Grade.HARD:
-                for dsq in outcome.diseases:
-                    msg = create_producer_message(rag_query=dsq.question, stream=False)
+                for i, dsq in enumerate(outcome.diseases, start=1):
+                    msg = create_producer_message(
+                        rag_query=dsq.question,
+                        stream=False,
+                        number=i,
+                        total=len(outcome.diseases),
+                    )
                     producer.send(topic=dsq.disease, value=msg.model_dump())
     except Exception as e:
         logger.error(f"Error while trying to perform an action: {e}")
