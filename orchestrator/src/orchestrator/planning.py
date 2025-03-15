@@ -8,8 +8,10 @@ from .utilities import (
     producer,
     diseases,
     redis_client,
+    chat_history_url,
 )
 from typing import List
+import httpx
 
 
 REASONING_ATTEMPTS = 5
@@ -88,7 +90,14 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
     try:
         match outcome.classification:
             case Grade.EASY:
-                await answer_immediately(chatbot_query)
+                answer = await generate_answer(chatbot_query)
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        chat_history_url,
+                        params={"username": chatbot_query.user_id},
+                        json={"question": chatbot_query.query, "answer": answer},
+                    )
+                    response.raise_for_status()
             case Grade.MEDIUM:
                 msg = create_producer_message(
                     rag_query=chatbot_query.query, stream=True, number=1, total=1
@@ -108,12 +117,14 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
         raise ActingException("Action not performed")
 
 
-async def answer_immediately(chatbot_query: ChatbotQuery) -> None:
+async def generate_answer(chatbot_query: ChatbotQuery) -> str:
     params = {"query": chatbot_query.query}
     prompt = prepare_prompt(template=PromptTemplate.EASY_QUERIES.value, **params)
     stream = llm.generate(model="llama3.3:latest", prompt=prompt, stream=True)
+    tokens = []
     for chunk in stream:
         logger.info(chunk.response)
+        tokens.append(chunk.response)
         entry_id = redis_client.xadd(
             name=chatbot_query.user_id,
             fields={
@@ -123,3 +134,4 @@ async def answer_immediately(chatbot_query: ChatbotQuery) -> None:
             },
         )
         logger.info(f"Entry added with ID: {entry_id}")
+    return "".join(tokens)

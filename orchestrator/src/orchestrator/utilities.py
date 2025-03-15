@@ -37,6 +37,7 @@ producer = KafkaProducer(
     value_serializer=lambda v: json.dumps(v).encode("utf-8"),
 )
 
+chat_history_url = os.getenv("CHAT_HISTORY_URL", "http://localhost:8089/requests/")
 
 # should read from config.json
 diseases = ["diabetes", "multiple sclerosis", "hypertension"]
