@@ -1,12 +1,13 @@
 import typer
 from typer import Option
-from cli.stream_client import send_request
+from cli.stream_client import StreamClient
 from cli import write_username_to_file, read_username_from_file
 from cli.chat_history_client import ChatHistoryClient
 import os
 
 app = typer.Typer()
 chat_history_client = ChatHistoryClient()
+stream_client = StreamClient()
 
 
 @app.command()
@@ -89,7 +90,7 @@ def ask(
             else:
                 current_answer += message
 
-    send_request(question, username_from_file, capture_answer)
+    stream_client.send_request(question, username_from_file, capture_answer)
 
     if not oneshot and question and current_answer:
         chat_history_client.create_or_update_chat(
@@ -113,7 +114,6 @@ def quit() -> None:
 def new_chat(username: str):
     write_username_to_file(username)
 
-    chat_history_client.delete_chat_history(username)
     chat_history_client.create_or_update_chat(
         username,
         "Welcome message",

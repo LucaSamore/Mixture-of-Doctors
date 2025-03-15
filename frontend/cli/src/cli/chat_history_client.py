@@ -31,7 +31,7 @@ class ChatHistoryClient:
             response = requests.post(
                 f"{self.base_url}/requests/",
                 params={"username": username},
-                json=conversation_item.model_dump(),
+                json=conversation_item.model_dump(mode="json"),
             )
 
             if response.status_code == 200:
