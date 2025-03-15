@@ -4,7 +4,6 @@ USERNAME_FILE = os.path.abspath(__file__) + "./../username.txt"
 
 
 def write_username_to_file(username: str) -> None:
-    print(USERNAME_FILE)
     with open(USERNAME_FILE, "w") as file:
         file.write(username)
 

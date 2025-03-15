@@ -2,16 +2,29 @@ import typer
 from typer import Option
 from cli.stream_client import send_request
 from cli import write_username_to_file, read_username_from_file
+from cli.chat_history_client import ChatHistoryClient
+import os
 
 app = typer.Typer()
+chat_history_client = ChatHistoryClient()
 
 
 @app.command()
 def mod() -> None:
     """
-    TODO: short description of mod command, a welcome message and list of subcommands
+    Mixture of Doctors (MOD) CLI client.
+
+    This tool allows you to interact with the virtual doctor system for self-management of chronic diseases.
+
+    Available subcommands:
+    - new: Create a new chat session
+    - restore: Continue an existing chat session
+    - chat: Start or restore a chat session
+    - ask: Ask a question to the virtual doctor
+    - quit: Close the current chat session
     """
-    pass
+    typer.echo("Welcome to Mixture of Doctors!")
+    typer.echo("Use 'mod --help' to see available commands.")
 
 
 mod_app = typer.Typer()
@@ -48,22 +61,42 @@ def chat(username: str) -> None:
 
 @mod_app.command()
 def ask(
-    question: str, oneshot: bool = Option(False, "--oneshot", is_flag=True, help="")
+    question: str,
+    oneshot: bool = Option(
+        False, "--oneshot", is_flag=True, help="Ask without saving to chat history"
+    ),
 ) -> None:
     """
     Ask question to virtual doctor.
     """
+    # Use local variables instead of globals
+    current_answer = None
+
     username_from_file = read_username_from_file()
     if username_from_file is None:
         typer.echo(
             "Before asking a question, it is necessary to start the chat and authenticate. Launch the command 'chat' or 'restore' or 'new'"
         )
-    else:
-        send_request(question, username_from_file, typer.echo)
-    if not oneshot:
-        # save question and answer in chat history (db)
-        # print chat history
-        pass
+        return
+
+    # Custom callback to print and capture the answer
+    def capture_answer(message, message_type=None):
+        nonlocal current_answer  # Use nonlocal instead of global
+        typer.echo(message)
+        if message_type is None:
+            if current_answer is None:
+                current_answer = message
+            else:
+                current_answer += message
+
+    send_request(question, username_from_file, capture_answer)
+
+    if not oneshot and question and current_answer:
+        chat_history_client.create_or_update_chat(
+            username_from_file, question, current_answer
+        )
+
+        display_chat_history(username_from_file)
 
 
 @mod_app.command()
@@ -71,25 +104,52 @@ def quit() -> None:
     """
     Close current chat with virtual doctor.
     """
-    print("Goodbye!")
+    # Remove the username file to end session
+    if os.path.exists(os.path.dirname(os.path.abspath(__file__)) + "/username.txt"):
+        os.remove(os.path.dirname(os.path.abspath(__file__)) + "/username.txt")
+    typer.echo("Goodbye!")
 
 
 def new_chat(username: str):
     write_username_to_file(username)
-    """
-    save new chat for username (empty doc in db)
-    print welcome message
-    print help message
-    """
+
+    chat_history_client.delete_chat_history(username)
+    chat_history_client.create_or_update_chat(
+        username,
+        "Welcome message",
+        "Hello! I'm your virtual doctor. How can I help you today?",
+    )
+
+    typer.echo(f"Welcome, {username}! A new chat session has been created for you.")
+    typer.echo("I'm your virtual doctor, ready to assist with your health questions.")
+    print_help_message()
 
 
 def restore_chat(username: str):
     write_username_to_file(username)
-    """
-    restore chat for username (from db)
-    print chat history
-    print help message
-    """
+    display_chat_history(username)
+    print_help_message()
+
+
+def display_chat_history(username: str):
+    history = chat_history_client.get_chat_history(username)
+
+    if history and history.conversation:
+        typer.echo("\n=== Chat History ===")
+        for i, item in enumerate(history.conversation):
+            typer.echo(f"\nQ{i + 1}: {item.question}")
+            typer.echo(f"A{i + 1}: {item.answer}")
+        typer.echo("\n==================")
+    else:
+        typer.echo("No chat history found or unable to retrieve chat history.")
+
+
+def print_help_message():
+    """Print help information for the user."""
+    typer.echo("\nAvailable commands:")
+    typer.echo('  - ask "your question"    : Ask a question to the virtual doctor')
+    typer.echo("  - quit                   : End the current chat session")
+    typer.echo("\nFor more options, type 'mod --help'")
 
 
 if __name__ == "__main__":
