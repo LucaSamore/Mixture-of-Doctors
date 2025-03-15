@@ -1,4 +1,3 @@
-version: '3'
 services:
   kafka:
     image: bitnami/kafka:${KAFKA_VERSION}
@@ -16,7 +15,6 @@ services:
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
-      - KAFKA_KRAFT_CLUSTER_ID=${KAFKA_KRAFT_CLUSTER_ID}
       - ALLOW_PLAINTEXT_LISTENER=yes
     volumes:
       - kafka_data:/bitnami/kafka
@@ -36,6 +34,7 @@ services:
     entrypoint: ["/bin/bash", "/init-scripts/create-topics.sh"]
     volumes:
       - ./init-scripts:/init-scripts
+      - ../../config.json:/app/config.json
     networks:
       - kafka-net
 
