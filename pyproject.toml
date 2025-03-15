@@ -18,4 +18,4 @@ venvPath = "."
 venv = ".venv"
 
 [tool.uv.workspace]
-members = ["orchestrator"]
+members = ["orchestrator", "chat-history"]
