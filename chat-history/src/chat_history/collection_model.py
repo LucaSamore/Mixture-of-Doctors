@@ -4,47 +4,28 @@ from typing import List
 
 
 class ConversationItem(BaseModel):
-    """
-    Model for a single conversation item
-    """
-
-    question: str = Field(..., description="Question sent by the user", min_length=1)
-    answer: str = Field(..., description="Answer provided to the user", min_length=1)
-    timestamp: datetime = Field(
-        default_factory=datetime.now,
-        description="Date and time of the conversation item",
-    )
+    question: str = Field(..., description="Question of user", min_length=1)
+    answer: str = Field(..., description="Answering ... ", min_length=1)
+    timestamp: datetime = Field(default_factory=datetime.now)
 
 
 class ConversationModel(BaseModel):
-    """
-    Model for a user's conversation
-    """
+    username: str = Field(..., description="Username of the user")
+    created_at: datetime = Field(default_factory=datetime.now)
+    conversation: List[ConversationItem] = Field(default_factory=list)
 
-    username: str = Field(..., description="Unique username for the user")
-    created_at: datetime = Field(
-        default_factory=datetime.now, description="Date and time when "
-    )
-    conversation: List[ConversationItem] = Field(
-        default_factory=list, description="List of conversation items"
-    )
-
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "username": "Roberto",
                 "created_at": datetime.now().isoformat(),
                 "conversation": [
                     {
-                        "question": "How does this API work?",
-                        "answer": "This API works like this...",
+                        "question": "How does the API work?",
+                        "answer": "The API is a RESTful API that allows you to store and retrieve chat history data.",
                         "timestamp": datetime.now().isoformat(),
-                    },
-                    {
-                        "question": "What are the benefits?",
-                        "answer": "The benefits are...",
-                        "timestamp": datetime.now().isoformat(),
-                    },
-                ],
+                    }
+                ]
             }
         }
+    }

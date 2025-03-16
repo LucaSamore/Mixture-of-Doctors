@@ -1,27 +1,26 @@
-# Configurazione alternativa con Mongo Express invece di Mongoku
 services:
   chat-history:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "${CHAT_HISTORY_PORT}:${CHAT_HISTORY_PORT}"
     depends_on:
       - mongo1
     environment:
-      - MONGODB_URL=mongodb://mongo1:27017,mongo2:27018,mongo3:27019/chat-history?replicaSet=rs0
-      - MONGODB_DB=chat-history
+      - MONGODB_URL=${MONGODB_URL}
+      - MONGODB_DB=${MONGODB_DB}
     networks:
       - mongodb-network
 
   mongo-express:
     image: mongo-express:latest
     ports:
-      - "8081:8081"
+      - "${MONGO_UI_PORT}:${MONGO_UI_PORT}"
     environment:
-      - ME_CONFIG_MONGODB_SERVER=mongo1
-      - ME_CONFIG_MONGODB_PORT=27017
-      - ME_CONFIG_MONGODB_URL=mongodb://mongo1:27017,mongo2:27018,mongo3:27019/?replicaSet=rs0
+      - ME_CONFIG_MONGODB_SERVER=${MONGO_PRIMARY_HOST}
+      - ME_CONFIG_MONGODB_PORT=${MONGO1_PORT}
+      - ME_CONFIG_MONGODB_URL=${MONGODB_URL}
       - ME_CONFIG_BASICAUTH=false
     depends_on:
       - mongo1
@@ -31,11 +30,11 @@ services:
 
   mongo1:
     image: mongo:latest
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO1_PORT}"]
     ports:
-      - 27017:27017
+      - ${MONGO1_PORT}:${MONGO1_PORT}
     healthcheck:
-      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo1:27017',priority:1},{_id:1,host:'mongo2:27018',priority:0.5},{_id:2,host:'mongo3:27019',priority:0.5}]}) }" | mongosh --port 27017 --quiet
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo1:${MONGO1_PORT}',priority:1},{_id:1,host:'mongo2:${MONGO2_PORT}',priority:0.5},{_id:2,host:'mongo3:${MONGO2_PORT}',priority:0.5}]}) }" | mongosh --port ${MONGO1_PORT} --quiet
       interval: 5s
       timeout: 30s
       start_period: 0s
@@ -47,11 +46,11 @@ services:
 
   mongo2:
     image: mongo:latest
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27018"]
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO2_PORT}"]
     ports:
-      - 27018:27018
+      - ${MONGO2_PORT}:${MONGO2_PORT}
     healthcheck:
-      test: echo "rs.status()" | mongosh --port 27018 --quiet
+      test: echo "rs.status()" | mongosh --port ${MONGO2_PORT} --quiet
       interval: 5s
       timeout: 30s
       retries: 30
@@ -62,11 +61,11 @@ services:
 
   mongo3:
     image: mongo:latest
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27019"]
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO3_PORT}"]
     ports:
-      - 27019:27019
+      - ${MONGO3_PORT}:${MONGO3_PORT}
     healthcheck:
-      test: echo "rs.status()" | mongosh --port 27019 --quiet
+      test: echo "rs.status()" | mongosh --port ${MONGO3_PORT} --quiet
       interval: 5s
       timeout: 30s
       retries: 30
