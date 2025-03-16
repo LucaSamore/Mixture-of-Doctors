@@ -9,6 +9,7 @@ dependencies = []
 [dependency-groups]
 dev = [
     "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
 ]
 
 [tool.pyright]
@@ -18,4 +19,4 @@ venvPath = "."
 venv = ".venv"
 
 [tool.uv.workspace]
-members = ["orchestrator", "chat-history"]
+members = ["orchestrator", "chat-history", "frontend/cli"]
