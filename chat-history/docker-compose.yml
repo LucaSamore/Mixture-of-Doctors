@@ -1,4 +1,4 @@
-# Rimuovere la dichiarazione di versione come suggerito dal warning
+# Configurazione alternativa con Mongo Express invece di Mongoku
 services:
   chat-history:
     build:
@@ -7,11 +7,27 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - mongo1  # Dipendenza corretta al primo nodo del replica set
+      - mongo1
     environment:
-      # Stringa di connessione per replica set
       - MONGODB_URL=mongodb://mongo1:27017,mongo2:27018,mongo3:27019/chat-history?replicaSet=rs0
       - MONGODB_DB=chat-history
+    networks:
+      - mongodb-network
+
+  mongo-express:
+    image: mongo-express:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongo1
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_MONGODB_URL=mongodb://mongo1:27017,mongo2:27018,mongo3:27019/?replicaSet=rs0
+      - ME_CONFIG_BASICAUTH=false
+    depends_on:
+      - mongo1
+    restart: unless-stopped
+    networks:
+      - mongodb-network
 
   mongo1:
     image: mongo:latest
@@ -26,6 +42,8 @@ services:
       retries: 30
     volumes:
       - "mongo1_data:/data/db"
+    networks:
+      - mongodb-network
 
   mongo2:
     image: mongo:latest
@@ -39,6 +57,8 @@ services:
       retries: 30
     volumes:
       - "mongo2_data:/data/db"
+    networks:
+      - mongodb-network
 
   mongo3:
     image: mongo:latest
@@ -52,6 +72,12 @@ services:
       retries: 30
     volumes:
       - "mongo3_data:/data/db"
+    networks:
+      - mongodb-network
+
+networks:
+  mongodb-network:
+    driver: bridge
 
 volumes:
   mongo1_data:
