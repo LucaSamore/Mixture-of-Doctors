@@ -18,6 +18,11 @@ async def handle_request(request: ChatbotQuery):
     await act(outcome, request)
 
 
+@app.get("/health", status_code=200)
+async def healthcheck():
+    return JSONResponse(status_code=200, content={"status": "UP"})
+
+
 @app.get("/", status_code=200)
 async def test():
     async with httpx.AsyncClient() as client:
