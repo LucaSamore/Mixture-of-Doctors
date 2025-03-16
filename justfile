@@ -20,5 +20,8 @@ lint:
 format:
 	uv run ruff format
 
-cli:
-    uv run python frontend/cli/src/cli/client.py
+redis:
+	docker-compose --env-file ./infrastructure/redis/.env -f ./infrastructure/redis/docker-compose.yml up -d
+
+post:
+	@curl -X POST "http://127.0.0.1:8000/" -H "Content-Type: application/json" -d '{"user_id": "Luca", "query": "Hello?"}'
