@@ -9,7 +9,7 @@ services:
       - redis_data:/data
     restart: unless-stopped
     networks:
-      - redis-network
+      - mod-network
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-redispassword}
     healthcheck:
@@ -29,11 +29,12 @@ services:
     depends_on:
       - redis
     networks:
-      - redis-network
+      - mod-network
 
 networks:
-  redis-network:
-    driver: bridge
+  mod-network:
+    name: mod-network
+    external: true
 
 volumes:
   redis_data:

@@ -19,7 +19,7 @@ services:
     volumes:
       - kafka_data:/bitnami/kafka
     networks:
-      - kafka-net
+      - mod-network
     healthcheck:
       test: kafka-topics.sh --bootstrap-server localhost:${KAFKA_PORT} --list || exit 1
       interval: 30s
@@ -36,7 +36,7 @@ services:
       - ./init-scripts:/init-scripts
       - ../../config.json:/app/config.json
     networks:
-      - kafka-net
+      - mod-network
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -51,7 +51,7 @@ services:
     depends_on:
       - kafka
     networks:
-      - kafka-net
+      - mod-network
     healthcheck:
       test: wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
       interval: 30s
@@ -64,5 +64,6 @@ volumes:
     driver: local
 
 networks:
-  kafka-net:
-    driver: bridge
+  mod-network:
+    name: mod-network
+    external: true

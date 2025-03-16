@@ -22,17 +22,33 @@ if ! docker compose version &> /dev/null; then
     exit 1
 fi
 
-# Deploy Chat History Service
-echo -e "${YELLOW}Deploying Chat History Service...${NC}"
-cd chat-history
+# Create the shared network if it doesn't exist
+echo -e "${YELLOW}Creating shared Docker network 'mod-network' if it doesn't exist...${NC}"
+docker network inspect mod-network >/dev/null 2>&1 || docker network create mod-network
+
+# Deploy kafka first (if needed)
+echo -e "${YELLOW}Deploying Kafka...${NC}"
+cd infrastructure/kafka
 docker compose up -d
-cd ..
+cd ../..
 
 # Deploy Redis
 echo -e "${YELLOW}Deploying Redis...${NC}"
 cd infrastructure/redis
 docker compose up -d
 cd ../..
+
+# Deploy Chat History Service
+echo -e "${YELLOW}Deploying Chat History Service...${NC}"
+cd chat-history
+docker compose up -d
+cd ..
+
+# Deploy Orchestrator
+echo -e "${YELLOW}Deploying Orchestrator Service...${NC}"
+cd orchestrator
+docker compose up -d
+cd ..
 
 echo -e "${GREEN}Services deployed successfully!${NC}"
 echo -e "${GREEN}=== Access Information ===${NC}"
