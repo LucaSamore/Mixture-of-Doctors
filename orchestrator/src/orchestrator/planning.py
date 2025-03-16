@@ -10,11 +10,25 @@ from .utilities import (
     redis_client,
     chat_history_url,
 )
+from datetime import datetime
 from typing import List
 import httpx
+import json
 
 
 REASONING_ATTEMPTS = 5
+
+
+class ConversationItem(BaseModel):
+    question: str
+    answer: str
+    timestamp: datetime = datetime.now()
+
+
+class ConversationModel(BaseModel):
+    username: str
+    created_at: datetime
+    conversation: List[ConversationItem]
 
 
 class ChatbotQuery(BaseModel):
@@ -90,7 +104,13 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
     try:
         match outcome.classification:
             case Grade.EASY:
-                answer = await generate_answer(chatbot_query)
+                async with httpx.AsyncClient() as client:
+                    context = await client.get(
+                        f"{chat_history_url}{chatbot_query.user_id}",
+                    )
+                    context.raise_for_status()
+                    context = ConversationModel.model_validate_json(context.json())
+                answer = await generate_answer(chatbot_query, context.conversation)
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
                         chat_history_url,
@@ -117,8 +137,13 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
         raise ActingException("Action not performed")
 
 
-async def generate_answer(chatbot_query: ChatbotQuery) -> str:
-    params = {"query": chatbot_query.query}
+async def generate_answer(
+    chatbot_query: ChatbotQuery, conversation: List[ConversationItem]
+) -> str:
+    params = {
+        "query": chatbot_query.query,
+        "context": json.dumps([item.model_dump() for item in conversation], indent=4),
+    }
     prompt = prepare_prompt(template=PromptTemplate.EASY_QUERIES.value, **params)
     stream = llm.generate(model="llama3.3:latest", prompt=prompt, stream=True)
     tokens = []
