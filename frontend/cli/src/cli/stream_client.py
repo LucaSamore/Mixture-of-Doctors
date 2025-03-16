@@ -5,6 +5,9 @@ import os
 from typing import Any, Callable
 from pydantic import BaseModel
 from loguru import logger
+from dotenv import load_dotenv
+
+load_dotenv()
 
 type Query = str
 

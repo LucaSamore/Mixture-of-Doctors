@@ -3,6 +3,9 @@ import requests
 from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class ConversationItem(BaseModel):
