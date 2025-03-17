@@ -49,6 +49,21 @@ stop_service() {
     fi
 }
 
+# Remove Docker Swarm stack first
+echo -e "${YELLOW}Stopping Orchestrator Docker Swarm stack...${NC}"
+if docker stack ls --format "{{.Name}}" | grep -q "^orchestrator$"; then
+    docker stack rm orchestrator
+    echo -e "${GREEN}✓ Orchestrator stack removed${NC}"
+    
+    # Wait for services to be fully removed
+    echo -e "${YELLOW}Waiting for orchestrator services to be removed...${NC}"
+    while docker service ls --filter name=orchestrator -q | grep -q .; do
+        sleep 2
+    done
+else
+    echo -e "${YELLOW}Orchestrator stack not found, skipping...${NC}"
+fi
+
 # Stop services in reverse order of deployment
 
 # Stop orchestrator

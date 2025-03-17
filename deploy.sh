@@ -1,5 +1,4 @@
 #!/bin/bash
-# filepath: deploy.sh
 
 set -e
 
@@ -25,6 +24,33 @@ fi
 # Create the shared network if it doesn't exist
 echo -e "${YELLOW}Creating shared Docker network 'mod-network' if it doesn't exist...${NC}"
 docker network inspect mod-network >/dev/null 2>&1 || docker network create mod-network
+
+# Initialize Docker Swarm if not already initialized
+if ! docker info | grep -q "Swarm: active"; then
+    echo -e "${YELLOW}Initializing Docker Swarm...${NC}"
+    docker swarm init
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Failed to initialize Docker Swarm. Please check the error message above.${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}Docker Swarm initialized successfully.${NC}"
+else
+    echo -e "${GREEN}Docker Swarm is already initialized.${NC}"
+fi
+
+# Create a swarm network if it doesn't exist
+echo -e "${YELLOW}Setting up swarm network...${NC}"
+if ! docker network ls --filter name=mod-network --filter scope=swarm -q | grep -q .; then
+    echo -e "${YELLOW}Creating swarm network 'mod-network'...${NC}"
+    docker network create --driver overlay --attachable mod-network
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Failed to create network. Exiting.${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}Network 'mod-network' created in swarm scope.${NC}"
+else
+    echo -e "${GREEN}Swarm network 'mod-network' already exists.${NC}"
+fi
 
 # Deploy kafka first
 echo -e "${YELLOW}=== Starting Kafka with KRaft and UI environment ===${NC}"
@@ -160,16 +186,29 @@ cd chat-history
 docker compose up -d
 cd ..
 
-# Deploy Orchestrator
-echo -e "${YELLOW}Deploying Orchestrator Service...${NC}"
+# Deploy Orchestrator with Docker Swarm
+echo -e "${YELLOW}Deploying Orchestrator with Docker Swarm...${NC}"
 cd orchestrator
-docker compose up -d
+
+# Build the orchestrator image
+echo -e "${YELLOW}Building orchestrator image...${NC}"
+docker build -t mod/orchestrator:latest .
+
+# Deploy the stack
+echo -e "${YELLOW}Deploying orchestrator stack...${NC}"
+docker stack deploy -c docker-compose.yml orchestrator
+
+# Check deployment status
+echo -e "${YELLOW}Checking deployment status...${NC}"
+sleep 5
+docker stack services orchestrator
 cd ..
 
-echo -e "${GREEN}Services deployed successfully!${NC}"
+echo -e "${GREEN}All services deployed successfully!${NC}"
 echo -e "${GREEN}=== Access Information ===${NC}"
 echo -e "Chat History API: http://localhost:8000"
 echo -e "Redis: localhost:6379"
+echo -e "Orchestrator (x3): http://localhost:8082"
 
 # Show current CLI .env content
 echo -e "${YELLOW}Current CLI .env configuration:${NC}"
@@ -179,7 +218,8 @@ echo
 echo -e "${YELLOW}Make sure the above configuration is correct for your environment.${NC}"
 
 echo -e "${GREEN}Deployment script finished.${NC}"
-echo -e "${YELLOW}To stop all services: ${NC}cd chat-history && docker compose down && cd ../infrastructure/redis && docker compose down"
-echo -e "${YELLOW}To view logs: ${NC}cd chat-history && docker compose logs -f"
+echo -e "${YELLOW}To stop all services run: ${NC}./undeploy.sh"
+echo -e "${YELLOW}To view Docker Swarm services: ${NC}docker service ls"
+echo -e "${YELLOW}To view orchestrator logs: ${NC}docker service logs orchestrator_orchestrator"
 
 uv run frontend/cli/src/cli/client.py mod --help
