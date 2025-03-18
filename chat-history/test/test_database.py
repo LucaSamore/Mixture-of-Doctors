@@ -49,6 +49,26 @@ async def test_add_new_conversation(setup_service):
 
 
 @pytest.mark.asyncio
+async def test_add_conversation_without_item(setup_service):
+    """Test creating a conversation without adding a conversation item."""
+    service, mock_collection, mock_client = setup_service
+    
+    mock_session = Mock()
+    mock_session.start_transaction.return_value = mock_transaction()
+    mock_client.start_session.return_value.__aenter__.return_value = mock_session
+    mock_collection.find_one.return_value = None
+    
+    username = "new_user_no_conversation"
+    
+    result = await service.add_conversation_item(username, None)
+    
+    assert result.username == username
+    assert len(result.conversation) == 0
+    mock_collection.update_one.assert_called_once()
+    mock_session.start_transaction.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_add_to_existing_conversation(setup_service):
     """Test adding an item to an existing conversation."""
     service, mock_collection, mock_client = setup_service

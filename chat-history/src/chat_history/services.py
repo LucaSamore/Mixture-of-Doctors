@@ -8,7 +8,7 @@ class ConversationService:
         self.database = database
         self.conversation_collection = database.conversations
 
-    async def add_conversation_item(self, username: str, conversation_item: ConversationItem) -> ConversationModel:
+    async def add_conversation_item(self, username: str, conversation_item: Optional[ConversationItem] = None) -> ConversationModel:
         logger.info(f"Starting transaction to add conversation item for user: {username}")
         async with await self.database.client.start_session() as session:
             async with session.start_transaction():
@@ -16,16 +16,18 @@ class ConversationService:
                 logger.info(f"Transaction completed successfully for user: {username}")
                 return ConversationModel(**updated_conversation)
 
-    async def _update_conversation_transaction(self, session: AsyncIOMotorClientSession, username: str, conversation_item: ConversationItem) -> dict:
+    async def _update_conversation_transaction(self, session: AsyncIOMotorClientSession, username: str, conversation_item: Optional[ConversationItem] = None) -> dict:
         existing_conversation = await self.conversation_collection.find_one({"username": username}, session=session)
 
         if existing_conversation:
             logger.info(f"Updating existing conversation for user: {username}")
             conversation_model = ConversationModel(**existing_conversation)
-            conversation_model.conversation.append(conversation_item)
+            if conversation_item:
+                conversation_model.conversation.append(conversation_item)
         else:
             logger.info(f"Creating new conversation for user: {username}")
-            conversation_model = ConversationModel(username=username, conversation=[conversation_item])
+            conversation = [] if conversation_item is None else [conversation_item]
+            conversation_model = ConversationModel(username=username, conversation=conversation)
 
         updated_conversation_dict = conversation_model.model_dump()
 
