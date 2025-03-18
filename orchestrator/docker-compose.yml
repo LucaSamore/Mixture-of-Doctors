@@ -7,7 +7,7 @@ services:
     ports:
       - "8082:8080"
     volumes:
-      - ./logs:/app/logs
+      - orchestrator_logs:/app/logs
     environment:
       - CLUSTER_HOST=${CLUSTER_HOST}
       - CLUSTER_PORT=${CLUSTER_PORT}
@@ -38,3 +38,6 @@ networks:
   mod-network:
     name: mod-network
     external: true
+
+volumes:
+  orchestrator_logs:

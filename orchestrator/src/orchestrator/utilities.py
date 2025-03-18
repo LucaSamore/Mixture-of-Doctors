@@ -16,7 +16,7 @@ class PromptTemplate(Enum):
     EASY_QUERIES = "./prompts/easy_queries.md"
 
 
-logger.add("./logs/orchestrator.log", rotation="10 MB")
+logger.add("/app/logs/orchestrator.log", rotation="10 MB")
 
 
 cluster_host = os.getenv("CLUSTER_HOST")
