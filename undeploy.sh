@@ -1,5 +1,4 @@
 #!/bin/bash
-# filepath: c:\dev\code\mixture-of-doctors\undeploy.sh
 
 set -e
 
@@ -78,16 +77,30 @@ stop_service "infrastructure/redis" "Redis"
 # Stop Kafka
 stop_service "infrastructure/kafka" "Kafka"
 
-# Remove the shared network
-echo -e "${YELLOW}Checking if mod-network is still in use...${NC}"
-# Get container count using the network
-CONTAINER_COUNT=$(docker network inspect mod-network -f '{{len .Containers}}' 2>/dev/null || echo "0")
+# Remove the shared Docker Swarm network
+echo -e "${YELLOW}Checking if mod-network (swarm scope) is still in use...${NC}"
 
-if [ "$CONTAINER_COUNT" -eq "0" ]; then
-    echo -e "${YELLOW}Removing mod-network...${NC}"
-    docker network rm mod-network 2>/dev/null || echo -e "${YELLOW}Network mod-network already removed or doesn't exist${NC}"
+# Check if network exists
+if docker network ls --filter name=mod-network --filter scope=swarm -q | grep -q .; then
+    # Get container count using the network
+    CONTAINER_COUNT=$(docker network inspect mod-network -f '{{len .Containers}}' 2>/dev/null || echo "0")
+
+    if [ "$CONTAINER_COUNT" -eq "0" ]; then
+        echo -e "${YELLOW}Removing mod-network swarm network...${NC}"
+        docker network rm mod-network 2>/dev/null || echo -e "${YELLOW}Network mod-network could not be removed (it may still be in use)${NC}"
+        
+        # Give Docker a moment to actually remove the network
+        sleep 2
+        
+        # Double-check if network is gone
+        if ! docker network ls --filter name=mod-network -q | grep -q .; then
+            echo -e "${GREEN}✓ Network mod-network successfully removed${NC}"
+        fi
+    else
+        echo -e "${YELLOW}Network mod-network still in use by ${CONTAINER_COUNT} containers. Skipping removal.${NC}"
+    fi
 else
-    echo -e "${YELLOW}Network mod-network still in use by ${CONTAINER_COUNT} containers. Skipping removal.${NC}"
+    echo -e "${YELLOW}Network mod-network not found, skipping removal.${NC}"
 fi
 
 echo -e "${GREEN}=== Un-deployment completed! ===${NC}"

@@ -21,10 +21,6 @@ if ! docker compose version &> /dev/null; then
     exit 1
 fi
 
-# Create the shared network if it doesn't exist
-echo -e "${YELLOW}Creating shared Docker network 'mod-network' if it doesn't exist...${NC}"
-docker network inspect mod-network >/dev/null 2>&1 || docker network create mod-network
-
 # Initialize Docker Swarm if not already initialized
 if ! docker info | grep -q "Swarm: active"; then
     echo -e "${YELLOW}Initializing Docker Swarm...${NC}"
@@ -38,10 +34,9 @@ else
     echo -e "${GREEN}Docker Swarm is already initialized.${NC}"
 fi
 
-# Create a swarm network if it doesn't exist
-echo -e "${YELLOW}Setting up swarm network...${NC}"
+# Create a shared Docker Swarm network if it doesn't exist
+echo -e "${YELLOW}Creating shared Docker Swarm network 'mod-network' if it doesn't exist...${NC}"
 if ! docker network ls --filter name=mod-network --filter scope=swarm -q | grep -q .; then
-    echo -e "${YELLOW}Creating swarm network 'mod-network'...${NC}"
     docker network create --driver overlay --attachable mod-network
     if [ $? -ne 0 ]; then
         echo -e "${RED}Failed to create network. Exiting.${NC}"
