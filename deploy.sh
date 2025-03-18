@@ -196,7 +196,7 @@ docker build -t mod/orchestrator:latest .
 
 # Deploy the stack
 echo -e "${YELLOW}Deploying orchestrator stack...${NC}"
-docker stack deploy -c docker-compose.yml orchestrator
+docker stack deploy --with-registry-auth -c docker-compose.yml orchestrator
 
 # Check deployment status
 echo -e "${YELLOW}Checking deployment status...${NC}"
