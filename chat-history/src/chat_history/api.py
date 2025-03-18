@@ -3,13 +3,14 @@ from chat_history.collection_model import ConversationModel, ConversationItem
 from chat_history.services import ConversationService
 from fastapi import APIRouter, HTTPException, Depends
 from loguru import logger
+from typing import Optional
 
 
 router = APIRouter()
 
 
 @router.post("/", response_model=ConversationModel, status_code=200)
-async def add_conversation_item(username: str, conversation_item: ConversationItem, db=Depends(get_database)):
+async def add_conversation_item(username: str, conversation_item: Optional[ConversationItem] = None, db=Depends(get_database)):
     logger.info(f"Adding conversation item for user: {username}")
     service = ConversationService(db)
     result = await service.add_conversation_item(username, conversation_item)
