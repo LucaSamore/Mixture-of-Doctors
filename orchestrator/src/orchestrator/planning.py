@@ -106,18 +106,11 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
             case Grade.EASY:
                 async with httpx.AsyncClient() as client:
                     context = await client.get(
-                        f"{chat_history_url}{chatbot_query.user_id}",
+                        f"{chat_history_url}/{chatbot_query.user_id}",
                     )
                     context.raise_for_status()
                     context = ConversationModel.model_validate_json(context.json())
-                answer = await generate_answer(chatbot_query, context.conversation)
-                async with httpx.AsyncClient() as client:
-                    response = await client.post(
-                        chat_history_url,
-                        params={"username": chatbot_query.user_id},
-                        json={"question": chatbot_query.query, "answer": answer},
-                    )
-                    response.raise_for_status()
+                await generate_answer(chatbot_query, context.conversation)
             case Grade.MEDIUM:
                 msg = create_producer_message(
                     rag_query=chatbot_query.query, stream=True, number=1, total=1
@@ -139,17 +132,15 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
 
 async def generate_answer(
     chatbot_query: ChatbotQuery, conversation: List[ConversationItem]
-) -> str:
+) -> None:
     params = {
         "query": chatbot_query.query,
         "context": json.dumps([item.model_dump() for item in conversation], indent=4),
     }
     prompt = prepare_prompt(template=PromptTemplate.EASY_QUERIES.value, **params)
     stream = llm.generate(model="llama3.3:latest", prompt=prompt, stream=True)
-    tokens = []
     for chunk in stream:
         logger.info(chunk.response)
-        tokens.append(chunk.response)
         entry_id = redis_client.xadd(
             name=chatbot_query.user_id,
             fields={
@@ -159,4 +150,3 @@ async def generate_answer(
             },
         )
         logger.info(f"Entry added with ID: {entry_id}")
-    return "".join(tokens)
