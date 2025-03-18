@@ -9,6 +9,11 @@ from src.cli.chat_history_client import (
 
 
 @pytest.fixture
+def mock_print_fn():
+    return MagicMock()
+
+
+@pytest.fixture
 def chat_history_client():
     return ChatHistoryClient()
 
@@ -37,7 +42,7 @@ def test_create_or_update_chat_success(mock_post, chat_history_client, mock_resp
     mock_post.return_value = mock_response
 
     result = chat_history_client.create_or_update_chat(
-        "test_user", "Test question", "Test answer"
+        "test_user", "Test question", "Test answer", mock_print_fn
     )
 
     mock_post.assert_called_once()
@@ -51,35 +56,39 @@ def test_create_or_update_chat_success(mock_post, chat_history_client, mock_resp
 
 
 @patch("requests.post")
-def test_create_or_update_chat_error(mock_post, chat_history_client):
+def test_create_or_update_chat_error(mock_post, chat_history_client, mock_print_fn):
     mock_response = MagicMock()
     mock_response.status_code = 500
     mock_response.text = "Internal Server Error"
     mock_post.return_value = mock_response
 
     result = chat_history_client.create_or_update_chat(
-        "test_user", "Test question", "Test answer"
+        "test_user", "Test question", "Test answer", mock_print_fn
     )
 
     assert result is None
+    mock_print_fn.assert_called_once()
 
 
 @patch("requests.post")
-def test_create_or_update_chat_exception(mock_post, chat_history_client):
+def test_create_or_update_chat_exception(mock_post, chat_history_client, mock_print_fn):
     mock_post.side_effect = Exception("Connection error")
 
     result = chat_history_client.create_or_update_chat(
-        "test_user", "Test question", "Test answer"
+        "test_user", "Test question", "Test answer", mock_print_fn
     )
 
     assert result is None
+    mock_print_fn.assert_called_once()
 
 
 @patch("requests.get")
-def test_get_chat_history_success(mock_get, chat_history_client, mock_response):
+def test_get_chat_history_success(
+    mock_get, chat_history_client, mock_response, mock_print_fn
+):
     mock_get.return_value = mock_response
 
-    result = chat_history_client.get_chat_history("test_user")
+    result = chat_history_client.get_chat_history("test_user", mock_print_fn)
     mock_get.assert_called_once_with(
         f"{chat_history_client.base_url}/requests/test_user"
     )
@@ -90,45 +99,47 @@ def test_get_chat_history_success(mock_get, chat_history_client, mock_response):
 
 
 @patch("requests.get")
-def test_get_chat_history_not_found(mock_get, chat_history_client):
+def test_get_chat_history_not_found(mock_get, chat_history_client, mock_print_fn):
     mock_response = MagicMock()
     mock_response.status_code = 404
     mock_response.text = "Not Found"
     mock_get.return_value = mock_response
 
-    result = chat_history_client.get_chat_history("nonexistent_user")
+    result = chat_history_client.get_chat_history("nonexistent_user", mock_print_fn)
 
     assert result is None
 
 
 @patch("requests.get")
-def test_get_chat_history_error(mock_get, chat_history_client):
+def test_get_chat_history_error(mock_get, chat_history_client, mock_print_fn):
     mock_response = MagicMock()
     mock_response.status_code = 500
     mock_response.text = "Internal Server Error"
     mock_get.return_value = mock_response
 
-    result = chat_history_client.get_chat_history("test_user")
+    result = chat_history_client.get_chat_history("test_user", mock_print_fn)
 
     assert result is None
+    mock_print_fn.assert_called_once()
 
 
 @patch("requests.get")
-def test_get_chat_history_exception(mock_get, chat_history_client):
+def test_get_chat_history_exception(mock_get, chat_history_client, mock_print_fn):
     mock_get.side_effect = Exception("Connection error")
 
-    result = chat_history_client.get_chat_history("test_user")
+    result = chat_history_client.get_chat_history("test_user", mock_print_fn)
 
     assert result is None
+    mock_print_fn.assert_called_once()
 
 
 @patch("requests.delete")
-def test_delete_chat_history_success(mock_delete, chat_history_client):
+def test_delete_chat_history_success(mock_delete, chat_history_client, mock_print_fn):
     mock_response = MagicMock()
     mock_response.status_code = 204
     mock_delete.return_value = mock_response
 
-    result = chat_history_client.delete_chat_history("test_user")
+    result = chat_history_client.delete_chat_history("test_user", mock_print_fn)
 
     mock_delete.assert_called_once_with(
         f"{chat_history_client.base_url}/requests/test_user"
@@ -138,21 +149,23 @@ def test_delete_chat_history_success(mock_delete, chat_history_client):
 
 
 @patch("requests.delete")
-def test_delete_chat_history_error(mock_delete, chat_history_client):
+def test_delete_chat_history_error(mock_delete, chat_history_client, mock_print_fn):
     mock_response = MagicMock()
     mock_response.status_code = 500
     mock_response.text = "Internal Server Error"
     mock_delete.return_value = mock_response
 
-    result = chat_history_client.delete_chat_history("test_user")
+    result = chat_history_client.delete_chat_history("test_user", mock_print_fn)
 
     assert result is False
+    mock_print_fn.assert_called_once()
 
 
 @patch("requests.delete")
-def test_delete_chat_history_exception(mock_delete, chat_history_client):
+def test_delete_chat_history_exception(mock_delete, chat_history_client, mock_print_fn):
     mock_delete.side_effect = Exception("Connection error")
 
-    result = chat_history_client.delete_chat_history("test_user")
+    result = chat_history_client.delete_chat_history("test_user", mock_print_fn)
 
     assert result is False
+    mock_print_fn.assert_called_once()

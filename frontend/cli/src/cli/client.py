@@ -94,7 +94,7 @@ def ask(
 
     if not oneshot and question and current_answer:
         chat_history_client.create_or_update_chat(
-            username_from_file, question, current_answer
+            username_from_file, question, current_answer, typer.echo
         )
 
         display_chat_history(username_from_file)
@@ -114,11 +114,7 @@ def quit() -> None:
 def new_chat(username: str):
     write_username_to_file(username)
 
-    chat_history_client.create_or_update_chat(
-        username,
-        "Welcome message",
-        "Hello! I'm your virtual doctor. How can I help you today?",
-    )
+    chat_history_client.create_chat(username, typer.echo)
 
     typer.echo(f"Welcome, {username}! A new chat session has been created for you.")
     typer.echo("I'm your virtual doctor, ready to assist with your health questions.")
@@ -132,7 +128,7 @@ def restore_chat(username: str):
 
 
 def display_chat_history(username: str):
-    history = chat_history_client.get_chat_history(username)
+    history = chat_history_client.get_chat_history(username, typer.echo)
 
     if history and history.conversation:
         typer.echo("\n=== Chat History ===")
