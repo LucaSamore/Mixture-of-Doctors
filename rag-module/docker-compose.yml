@@ -5,16 +5,38 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - PORT=8080
+      - PORT=${RAG_SERVICE_PORT}
       # RAG_DOMAIN will be overridden at runtime
-      - RAG_DOMAIN=${RAG_DOMAIN:-disease1}
+      - RAG_DOMAIN=${RAG_DOMAIN:-${RAG_DEFAULT_DOMAIN}}
+      # Add Qdrant connection details
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
     volumes:
       - ../config.json:/app/config.json
     networks:
       - rag-network
+    depends_on:
+      - qdrant
     deploy:
       # Allows starting multiple instances of the same service
       replicas: 1
+
+  # Qdrant vector database service
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "${QDRANT_REST_PORT}:6333"  # REST API
+      - "${QDRANT_GRPC_PORT}:6334"  # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - rag-network
+    environment:
+      - QDRANT_ALLOW_ANONYMOUS_READ=true
+
+volumes:
+  qdrant_data:
+    driver: local
 
 networks:
   rag-network:

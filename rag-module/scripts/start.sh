@@ -18,22 +18,44 @@ DOMAINS=$(grep -o '"[^"]*"' "$ROOT_DIR/config.json" | grep -v "rag_modules" | tr
 
 echo "Found domains: $DOMAINS"
 
-# Change to the script directory where docker-compose.yml is located
-cd "$SCRIPT_DIR"
+# Change to the rag-module directory where docker-compose.yml is located
+cd "$RAG_MODULE_DIR"
 
-# Loop through domains and start a RAG container for each
+# Base port for REST API (will be incremented for each domain)
+BASE_REST_PORT=6333
+# Base port for gRPC API (will be incremented for each domain)
+BASE_GRPC_PORT=6334
+
+# Loop through domains and start a RAG container for each with its own Qdrant
+domain_index=0
 for domain in $DOMAINS; do
     echo "Starting RAG module with domain: $domain"
+    
+    # Calculate ports for this domain (incrementing by 10 to avoid conflicts)
+    QDRANT_REST_PORT=$((BASE_REST_PORT + (domain_index * 10)))
+    QDRANT_GRPC_PORT=$((BASE_GRPC_PORT + (domain_index * 10)))
+    
     # Define unique project name for each domain
     project_name="rag-$domain"
     
-    # Use docker-compose up with a unique project name for each domain
+    # Export environment variables for docker-compose
     export RAG_DOMAIN=$domain
-    docker-compose -p $project_name build --no-cache && docker-compose -p $project_name up -d
+    export QDRANT_REST_PORT=$QDRANT_REST_PORT
+    export QDRANT_GRPC_PORT=$QDRANT_GRPC_PORT
     
-    echo "Started $project_name"
+    # Build and start both rag and qdrant services for this domain
+    docker-compose -p $project_name build rag --no-cache
+    docker-compose -p $project_name up -d
+    
+    echo "Started $project_name with Qdrant on port $QDRANT_REST_PORT"
+    echo "Qdrant dashboard for $domain available at: http://localhost:$QDRANT_REST_PORT"
+    
+    # Increment domain index for next iteration
+    domain_index=$((domain_index + 1))
+    
     # Short pause to avoid simultaneous startup issues
     sleep 1
 done
 
 echo "All RAG modules deployed!"
+echo "Check above for the specific Qdrant dashboard URLs for each domain"
