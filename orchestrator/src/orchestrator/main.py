@@ -1,8 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from .planning import reason, act, PlanningException, ChatbotQuery
+from .planning import reason, act, ChatbotQuery
+from .exceptions import PlanningException
 import httpx
-from .utilities import chat_history_url
+from .configurations import chat_history_url
 
 app = FastAPI()
 
@@ -28,10 +29,9 @@ async def test():
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
-                f"{chat_history_url}Luke",
+                f"{chat_history_url}test",
             )
             response.raise_for_status()
-            print("Tutto buono direttore!")
             return response.json()
         except Exception as e:
             return JSONResponse(status_code=500, content={"detail": str(e)})

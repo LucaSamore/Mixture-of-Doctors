@@ -1,15 +1,16 @@
 from enum import Enum
 from pydantic import BaseModel
-from .utilities import (
+from .configurations import (
     logger,
     PromptTemplate,
     prepare_prompt,
     llm,
-    producer,
+    kafka_producer,
     diseases,
     redis_client,
     chat_history_url,
 )
+from .exceptions import ReasoningException, ActingException
 from datetime import datetime
 from typing import List
 import httpx
@@ -34,18 +35,6 @@ class ConversationModel(BaseModel):
 class ChatbotQuery(BaseModel):
     user_id: str
     query: str
-
-
-class PlanningException(Exception):
-    pass
-
-
-class ReasoningException(PlanningException):
-    pass
-
-
-class ActingException(PlanningException):
-    pass
 
 
 class Grade(Enum):
@@ -115,7 +104,7 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
                 msg = create_producer_message(
                     rag_query=chatbot_query.query, stream=True, number=1, total=1
                 )
-                producer.send(topic=outcome.diseases[0], value=msg.model_dump())
+                kafka_producer.send(topic=outcome.diseases[0], value=msg.model_dump())
             case Grade.HARD:
                 for i, dsq in enumerate(outcome.diseases, start=1):
                     msg = create_producer_message(
@@ -124,7 +113,7 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
                         number=i,
                         total=len(outcome.diseases),
                     )
-                    producer.send(topic=dsq.disease, value=msg.model_dump())
+                    kafka_producer.send(topic=dsq.disease, value=msg.model_dump())
     except Exception as e:
         logger.error(f"Error while trying to perform an action: {e}")
         raise ActingException("Action not performed")
