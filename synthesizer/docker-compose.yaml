@@ -1,0 +1,19 @@
+services:
+  synthesizer:
+    build:
+      context: .
+      dockerfile: Dockerfile    
+    ports:
+      - "7000:7000"
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-localhost}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispassword}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}
+    networks:
+      - mod-network
+
+networks:
+  mod-network:
+    name: mod-network
+    external: true
