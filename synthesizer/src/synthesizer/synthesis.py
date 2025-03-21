@@ -1,9 +1,11 @@
 from loguru import logger
 from pydantic import BaseModel
 from typing import Dict
-from synthesizer.utilities import consumer
+from .utilities import llm, consumer, prepare_prompt
+import json
 import asyncio
 import json
+
 
 
 active_queries: Dict[str, Dict] = {}
@@ -96,3 +98,34 @@ async def handle_rag_response(rag_response: RagResponse):
             logger.info(f"All {query_data['total']} sub-queries received for user {user_id}, synthesizing responses")
         else:
             logger.warning(f"Missing responses for user {user_id}. Expected: {expected_numbers}, Got: {query_data['received_numbers']}")
+
+
+async def synthesize_responses(query_data: Dict):
+    try:
+        diseases_responses = []
+        for disease, response in query_data.items():
+            diseases_responses.append(f"### {disease.upper()} | RESPONSE:\n{response}")
+        responses = "\n\n".join(diseases_responses)
+        
+        response = await generate_synthesis(
+            query_data["original_query"], 
+            responses,
+            query_data["stream"]
+        )
+                                    
+    except Exception as e:
+        logger.error(f"Error during synthesis: {e}")
+
+
+async def generate_synthesis(original_query: str, formatted_responses: str, stream: bool):
+    params = {
+        "original_query": original_query,
+        "responses": formatted_responses
+    }
+    
+    prompt = prepare_prompt(template="./synth_prompt.md", **params)
+    
+    response = llm.generate(model="llama3.3:latest", prompt=prompt, stream=stream)
+    logger.info(f"Response synthesized {response}")
+    
+    return response
