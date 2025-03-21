@@ -8,16 +8,11 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}=== Deploying Services Using Existing Configuration ===${NC}"
+echo -e "${YELLOW}=== Deploying All Services Using Docker Swarm ===${NC}"
 
-# Check if Docker and Docker Compose are installed
+# Check if Docker is installed
 if ! command -v docker &> /dev/null; then
     echo -e "${RED}Docker is not installed. Please install Docker and try again.${NC}"
-    exit 1
-fi
-
-if ! docker compose version &> /dev/null; then
-    echo -e "${RED}Docker Compose is not available. Please install Docker Compose and try again.${NC}"
     exit 1
 fi
 
@@ -47,9 +42,6 @@ else
     echo -e "${GREEN}Swarm network 'mod-network' already exists.${NC}"
 fi
 
-# Deploy kafka first
-echo -e "${YELLOW}=== Starting Kafka with KRaft and UI environment ===${NC}"
-
 # Create init-scripts directory if it doesn't exist
 mkdir -p init-scripts
 
@@ -69,12 +61,6 @@ until kafka-topics.sh --bootstrap-server kafka:9092 --list > /dev/null 2>&1; do
 done
 
 echo "Kafka is ready! Creating topics..."
-
-# Create topic: orchestrator
-kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
-  --topic orchestrator \
-  --partitions 3 \
-  --replication-factor 1
 
 # Parse config.json to extract RAG module names
 if [ -f "/app/config.json" ]; then
@@ -127,62 +113,84 @@ EOF
     echo "Created topic initialization script."
 fi
 
-echo -e "${YELLOW}Deploying Kafka...${NC}"
+# Deploy Kafka with Docker Swarm
+echo -e "${YELLOW}Deploying Kafka Stack...${NC}"
 cd infrastructure/kafka
-docker compose up -d
+# Ensure config.json is available to the stack
+cp ../../config.json ./config.json
+export $(grep -v '^#' .env | xargs) 
+# docker stack deploy -c docker-compose.yml kafka
+envsubst < docker-compose.yml | docker stack deploy -c - kafka
+cd ../..
 
-# Verify that Kafka service is available
-MAX_ATTEMPTS=12
+# Wait for Kafka to be ready
+echo -e "${YELLOW}Waiting for Kafka to become ready...${NC}"
+MAX_ATTEMPTS=30
 ATTEMPT=0
+
 while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-    if docker-compose exec kafka kafka-topics.sh --bootstrap-server kafka:9092 --list > /dev/null 2>&1; then
-        echo -e "${GREEN}Kafka is ready!${NC}"
+    if docker service ls --filter "name=kafka_kafka" --format "{{.Replicas}}" | grep -q "[1-9]/[1-9]"; then
+        echo -e "${GREEN}Kafka service is running!${NC}"
+        sleep 10  # Give it a bit more time to be fully operational
         break
     fi
     
     ATTEMPT=$((ATTEMPT+1))
-    echo -e "${YELLOW}Waiting for Kafka... ($ATTEMPT/$MAX_ATTEMPTS)${NC}"
+    echo -e "${YELLOW}Waiting for Kafka to start... ($ATTEMPT/$MAX_ATTEMPTS)${NC}"
     sleep 5
     
     if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-        echo -e "${RED}Timeout during Kafka startup. Check logs with 'docker-compose logs kafka'${NC}"
+        echo -e "${RED}Timeout waiting for Kafka. Check logs with 'docker service logs kafka_kafka'${NC}"
         exit 1
     fi
 done
 
-echo -e "${YELLOW}Waiting for Kafka UI to start...${NC}"
+# Deploy Redis with Docker Swarm
+echo -e "${YELLOW}Deploying Redis Stack...${NC}"
+cd infrastructure/redis
+export $(grep -v '^#' .env | xargs)
+# docker stack deploy -c docker-compose.yml redis
+envsubst < docker-compose.yml | docker stack deploy -c - redis
+cd ../..
+
+# Wait for Redis to be ready
+echo -e "${YELLOW}Waiting for Redis to become ready...${NC}"
 ATTEMPT=0
+
 while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-    if curl -s http://localhost:8080/actuator/health > /dev/null 2>&1; then
-        echo -e "${GREEN}Kafka UI is ready!${NC}"
+    if docker service ls --filter "name=redis_redis" --format "{{.Replicas}}" | grep -q "[1-9]/[1-9]"; then
+        echo -e "${GREEN}Redis service is running!${NC}"
+        sleep 5  # Give it a bit more time to be fully operational
         break
     fi
     
     ATTEMPT=$((ATTEMPT+1))
-    echo -e "${YELLOW}Waiting for Kafka UI... ($ATTEMPT/$MAX_ATTEMPTS)${NC}"
+    echo -e "${YELLOW}Waiting for Redis to start... ($ATTEMPT/$MAX_ATTEMPTS)${NC}"
     sleep 5
-
+    
     if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-        echo -e "${RED}Timeout during Kafka UI startup. Check logs with 'docker-compose logs kafka-ui'${NC}"
-        break
+        echo -e "${RED}Timeout waiting for Redis. Check logs with 'docker service logs redis_redis'${NC}"
+        exit 1
     fi
 done
-cd ../..
 
-# Deploy Redis
-echo -e "${YELLOW}Deploying Redis...${NC}"
-cd infrastructure/redis
-docker compose up -d
-cd ../..
-
-# Deploy Chat History Service
-echo -e "${YELLOW}Deploying Chat History Service...${NC}"
+# Deploy Chat History with Docker Swarm
+echo -e "${YELLOW}Deploying Chat History Stack...${NC}"
 cd chat-history
-docker compose up -d
+
+# Build and tag the image explicitly
+echo -e "${YELLOW}Building chat-history image...${NC}"
+docker build -t mod/chat-history:latest .
+
+# Deploy the stack
+echo -e "${YELLOW}Deploying chat-history stack...${NC}"
+export $(grep -v '^#' .env | xargs)
+# docker stack deploy -c docker-compose.yml chat-history
+envsubst < docker-compose.yml | docker stack deploy -c - chat-history
 cd ..
 
 # Deploy Orchestrator with Docker Swarm
-echo -e "${YELLOW}Deploying Orchestrator with Docker Swarm...${NC}"
+echo -e "${YELLOW}Deploying Orchestrator Stack...${NC}"
 cd orchestrator
 
 # Build the orchestrator image
@@ -191,23 +199,29 @@ docker build -t mod/orchestrator:latest .
 
 # Deploy the stack
 echo -e "${YELLOW}Deploying orchestrator stack...${NC}"
-docker stack deploy -c docker-compose.yml orchestrator
-
-# Check deployment status
-echo -e "${YELLOW}Checking deployment status...${NC}"
-sleep 5
-docker stack services orchestrator
+export $(grep -v '^#' .env | xargs)
+# docker stack deploy -c docker-compose.yml orchestrator
+envsubst < docker-compose.yml | docker stack deploy -c - orchestrator
 cd ..
+
+# Check deployment status of all services
+echo -e "${YELLOW}Checking deployment status of all stacks...${NC}"
+sleep 5
+echo -e "${YELLOW}=== Services Status ===${NC}"
+docker stack ls
+echo -e "${YELLOW}=== Detailed Services Status ===${NC}"
+docker service ls
 
 echo -e "${GREEN}All services deployed successfully!${NC}"
 echo -e "${GREEN}=== Access Information ===${NC}"
 echo -e "Chat History API: http://localhost:8000"
 echo -e "Redis: localhost:6379"
-echo -e "Orchestrator (x3): http://localhost:8082"
+echo -e "Orchestrator: http://localhost:8082"
+echo -e "Kafka UI: http://localhost:8080"
 
 # Show current CLI .env content
 echo -e "${YELLOW}Current CLI .env configuration:${NC}"
-cat frontend/cli/src/cli/.env
+cat frontend/cli/src/cli/.env 2>/dev/null || echo "No .env file found for CLI"
 
 echo
 echo -e "${YELLOW}Make sure the above configuration is correct for your environment.${NC}"
@@ -215,6 +229,9 @@ echo -e "${YELLOW}Make sure the above configuration is correct for your environm
 echo -e "${GREEN}Deployment script finished.${NC}"
 echo -e "${YELLOW}To stop all services run: ${NC}./undeploy.sh"
 echo -e "${YELLOW}To view Docker Swarm services: ${NC}docker service ls"
-echo -e "${YELLOW}To view orchestrator logs: ${NC}docker service logs orchestrator_orchestrator"
+echo -e "${YELLOW}To view logs for a service: ${NC}docker service logs <service_name>"
 
-uv run frontend/cli/src/cli/client.py mod --help
+# Optionally show CLI help
+if command -v uv &> /dev/null; then
+    uv run frontend/cli/src/cli/client.py mod --help
+fi

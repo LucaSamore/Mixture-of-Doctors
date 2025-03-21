@@ -1,23 +1,10 @@
 #!/bin/bash
 
-set -e
-
 # Colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
-
-# Check if Docker and Docker Compose are installed
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}Docker is not installed.${NC}"
-    exit 1
-fi
-
-if ! docker compose version &> /dev/null; then
-    echo -e "${RED}Docker Compose is not available.${NC}"
-    exit 1
-fi
 
 # Parse command line arguments
 REMOVE_VOLUMES=false
@@ -26,85 +13,62 @@ if [ "$1" == "--volumes" ] || [ "$1" == "-v" ]; then
     echo -e "${YELLOW}WARNING: Will remove all volumes (data will be lost)${NC}"
 fi
 
-echo -e "${YELLOW}=== Starting un-deployment of all services ===${NC}"
+echo -e "${YELLOW}=== Undeploying all Docker Swarm stacks ===${NC}"
 
-# Function to stop services in a directory
-stop_service() {
-    local dir=$1
-    local service=$2
+# Function to remove a stack and wait for it to be fully removed
+remove_stack() {
+    local stack_name=$1
     
-    if [ -f "${dir}/docker-compose.yml" ]; then
-        echo -e "${YELLOW}Stopping ${service}...${NC}"
-        cd $dir
-        if [ "$REMOVE_VOLUMES" = true ]; then
-            docker compose down -v
-        else
-            docker compose down
-        fi
-        cd - > /dev/null
-        echo -e "${GREEN}✓ ${service} stopped${NC}"
+    if docker stack ls | grep -q "^$stack_name "; then
+        echo -e "${YELLOW}Removing $stack_name stack...${NC}"
+        docker stack rm $stack_name
+        
+        # Wait for all services to be removed
+        echo -e "${YELLOW}Waiting for $stack_name services to be completely removed...${NC}"
+        while docker service ls --filter name=$stack_name -q | grep -q .; do
+            echo -n "."
+            sleep 2
+        done
+        echo -e "\n${GREEN}All $stack_name services removed${NC}"
     else
-        echo -e "${YELLOW}No docker-compose.yml found in ${dir}, skipping...${NC}"
+        echo -e "${YELLOW}Stack $stack_name not found, skipping...${NC}"
     fi
 }
 
-# Remove Docker Swarm stack first
-echo -e "${YELLOW}Stopping Orchestrator Docker Swarm stack...${NC}"
-if docker stack ls --format "{{.Name}}" | grep -q "^orchestrator$"; then
-    docker stack rm orchestrator
-    echo -e "${GREEN}✓ Orchestrator stack removed${NC}"
-    
-    # Wait for services to be fully removed
-    echo -e "${YELLOW}Waiting for orchestrator services to be removed...${NC}"
-    while docker service ls --filter name=orchestrator -q | grep -q .; do
-        sleep 2
-    done
-else
-    echo -e "${YELLOW}Orchestrator stack not found, skipping...${NC}"
+# Remove all stacks in reverse order of deployment
+remove_stack "orchestrator"
+remove_stack "chat-history" 
+remove_stack "redis"
+remove_stack "kafka"
+
+# If --volumes flag is used, prune volumes
+if [ "$REMOVE_VOLUMES" = true ]; then
+    echo -e "${YELLOW}Pruning all unused volumes...${NC}"
+    docker volume prune -f
+    echo -e "${GREEN}Volumes pruned${NC}"
 fi
 
-# Stop services in reverse order of deployment
+# Check if swarm network still exists and remove if not in use
+echo -e "${YELLOW}Checking if mod-network (swarm scope) can be removed...${NC}"
+sleep 5  # Give Docker time to update network usage status
 
-# Stop orchestrator
-stop_service "orchestrator" "Orchestrator"
-
-# Stop Chat History
-stop_service "chat-history" "Chat History"
-
-# Stop Redis
-stop_service "infrastructure/redis" "Redis"
-
-# Stop Kafka
-stop_service "infrastructure/kafka" "Kafka"
-
-# Remove the shared Docker Swarm network
-echo -e "${YELLOW}Checking if mod-network (swarm scope) is still in use...${NC}"
-
-# Check if network exists
 if docker network ls --filter name=mod-network --filter scope=swarm -q | grep -q .; then
-    # Get container count using the network
-    CONTAINER_COUNT=$(docker network inspect mod-network -f '{{len .Containers}}' 2>/dev/null || echo "0")
-
-    if [ "$CONTAINER_COUNT" -eq "0" ]; then
+    # Check if any containers are still using it
+    USED_BY=$(docker network inspect mod-network -f '{{len .Containers}}' 2>/dev/null || echo "0")
+    
+    if [ "$USED_BY" -eq "0" ]; then
         echo -e "${YELLOW}Removing mod-network swarm network...${NC}"
-        docker network rm mod-network 2>/dev/null || echo -e "${YELLOW}Network mod-network could not be removed (it may still be in use)${NC}"
-        
-        # Give Docker a moment to actually remove the network
-        sleep 2
-        
-        # Double-check if network is gone
-        if ! docker network ls --filter name=mod-network -q | grep -q .; then
-            echo -e "${GREEN}✓ Network mod-network successfully removed${NC}"
-        fi
+        docker network rm mod-network
+        echo -e "${GREEN}Network mod-network removed${NC}"
     else
-        echo -e "${YELLOW}Network mod-network still in use by ${CONTAINER_COUNT} containers. Skipping removal.${NC}"
+        echo -e "${YELLOW}Network mod-network is still in use by $USED_BY containers, skipping removal.${NC}"
     fi
 else
     echo -e "${YELLOW}Network mod-network not found, skipping removal.${NC}"
 fi
 
-echo -e "${GREEN}=== Un-deployment completed! ===${NC}"
+echo -e "${GREEN}=== All stacks undeployed successfully! ===${NC}"
 
 if [ "$REMOVE_VOLUMES" != true ]; then
-    echo -e "${YELLOW}Note: Data volumes were preserved. Use './undeploy.sh --volumes' to remove all data.${NC}"
+    echo -e "${YELLOW}Note: Volumes were preserved. Use './undeploy.sh --volumes' to remove all data.${NC}"
 fi

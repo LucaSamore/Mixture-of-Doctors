@@ -18,3 +18,5 @@ init-scripts/
 .env
 
 *.log
+
+infrastrucutre/kafka/config.json

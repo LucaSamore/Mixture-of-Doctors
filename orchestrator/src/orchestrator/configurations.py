@@ -5,13 +5,9 @@ import string
 from enum import Enum
 
 import redis
-from dotenv import load_dotenv
 from kafka import KafkaProducer
 from loguru import logger
 from ollama import Client
-
-load_dotenv()
-
 
 LOG_FILE_PATH = "/app/logs/orchestrator.log"
 logger.add(LOG_FILE_PATH, rotation="10 MB")
@@ -38,8 +34,8 @@ llm = Client(host=f"http://{cluster_host}:{cluster_port}")
 # Redis client configuration
 redis_client = redis.Redis(
     host=os.getenv("REDIS_HOST", "redis"), 
-    port=int(os.getenv("REDIS_PORT", "6379")), 
-    password=os.getenv("REDIS_PASSWORD"), 
+    port=(lambda p: int(p) if p else 6379)(os.getenv("REDIS_PORT")), 
+    password=os.getenv("REDIS_PASSWORD", "redispassword"), 
     decode_responses=True
 )
 
@@ -47,10 +43,13 @@ redis_client = redis.Redis(
 kafka_producer = KafkaProducer(
     bootstrap_servers=os.getenv("KAFKA_BROKER"),
     value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+    retries=5,
+    retry_backoff_ms=1000,
+    reconnect_backoff_ms=1000,
+    reconnect_backoff_max_ms=10_000,
 )
-
 
 chat_history_url = os.getenv("CHAT_HISTORY_URL")
 
 
-diseases = ["diabetes", "multiple sclerosis", "hypertension"]
+diseases = ["diabetes", "multiple-sclerosis", "hypertension"]

@@ -1,78 +1,101 @@
 services:
   chat-history:
+    image: mod/chat-history:latest
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "${CHAT_HISTORY_HOST_PORT}:${CHAT_HISTORY_CONTAINER_PORT}"
-    depends_on:
-      - mongo1
     environment:
+      - CHAT_HISTORY_HOST_PORT=${CHAT_HISTORY_HOST_PORT}
+      - CHAT_HISTORY_CONTAINER_PORT=${CHAT_HISTORY_CONTAINER_PORT}
       - MONGODB_URL=${MONGODB_URL}
       - MONGODB_DB=${MONGODB_DB}
-    networks:
-      - mod-network
-
-  mongo-express:
-    image: mongo-express:latest
-    ports:
-      - "${MONGO_UI_PORT}:${MONGO_UI_PORT}"
-    environment:
-      - ME_CONFIG_MONGODB_SERVER=${MONGO_PRIMARY_HOST}
-      - ME_CONFIG_MONGODB_PORT=${MONGO1_PORT}
-      - ME_CONFIG_MONGODB_URL=${MONGODB_URL}
-      - ME_CONFIG_BASICAUTH=false
+      - MONGO_UI_HOST=${MONGO_UI_HOST}
+      - MONGO_UI_PORT=${MONGO_UI_PORT}
+      - MONGO_PRIMARY_HOST=${MONGO_PRIMARY_HOST}
+      - MONGO1_PORT=${MONGO1_PORT}
+      - MONGO2_PORT=${MONGO2_PORT}
+      - MONGO3_PORT=${MONGO3_PORT}
     depends_on:
-      - mongo1
-    restart: unless-stopped
-    networks:
-      - mod-network
+      - mongo-setup
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
   mongo1:
     image: mongo:latest
     command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO1_PORT}"]
     ports:
       - ${MONGO1_PORT}:${MONGO1_PORT}
-    healthcheck:
-      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo1:${MONGO1_PORT}',priority:1},{_id:1,host:'mongo2:${MONGO2_PORT}',priority:0.5},{_id:2,host:'mongo3:${MONGO3_PORT}',priority:0.5}]}) }" | mongosh --port ${MONGO1_PORT} --quiet
-      interval: 5s
-      timeout: 30s
-      start_period: 0s
-      retries: 30
     volumes:
       - "mongo1_data:/data/db"
-    networks:
-      - mod-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
 
   mongo2:
     image: mongo:latest
     command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO2_PORT}"]
     ports:
       - ${MONGO2_PORT}:${MONGO2_PORT}
-    healthcheck:
-      test: echo "rs.status()" | mongosh --port ${MONGO2_PORT} --quiet
-      interval: 5s
-      timeout: 30s
-      retries: 30
     volumes:
       - "mongo2_data:/data/db"
-    networks:
-      - mod-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
 
   mongo3:
     image: mongo:latest
     command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO3_PORT}"]
     ports:
       - ${MONGO3_PORT}:${MONGO3_PORT}
-    healthcheck:
-      test: echo "rs.status()" | mongosh --port ${MONGO3_PORT} --quiet
-      interval: 5s
-      timeout: 30s
-      retries: 30
     volumes:
       - "mongo3_data:/data/db"
-    networks:
-      - mod-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+
+  mongo-setup:
+    image: mongo:latest
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+    command: >
+      bash -c "
+        echo 'Waiting for MongoDB instances to start...'
+        sleep 10
+        until mongo --host mongo1 --port ${MONGO1_PORT} --eval 'print(\"Mongo1 ready\")' > /dev/null 2>&1; do
+          echo 'Waiting for mongo1...'
+          sleep 2
+        done
+        until mongo --host mongo2 --port ${MONGO2_PORT} --eval 'print(\"Mongo2 ready\")' > /dev/null 2>&1; do
+          echo 'Waiting for mongo2...'
+          sleep 2
+        done
+        until mongo --host mongo3 --port ${MONGO3_PORT} --eval 'print(\"Mongo3 ready\")' > /dev/null 2>&1; do
+          echo 'Waiting for mongo3...'
+          sleep 2
+        done
+        echo 'Initializing replica set...'
+        mongo --host mongo1 --port ${MONGO1_PORT} --eval 'rs.status() || rs.initiate({_id:\"rs0\", members:[{_id:0,host:\"mongo1:${MONGO1_PORT}\",priority:1},{_id:1,host:\"mongo2:${MONGO2_PORT}\",priority:0.5},{_id:2,host:\"mongo3:${MONGO3_PORT}\",priority:0.5}]})'
+        echo 'Replica set initialized!'
+      "
+    deploy:
+      restart_policy:
+        condition: on-failure
+      replicas: 1
 
 volumes:
   mongo1_data:
@@ -80,6 +103,6 @@ volumes:
   mongo3_data:
 
 networks:
-  mod-network:
+  default:
     name: mod-network
     external: true

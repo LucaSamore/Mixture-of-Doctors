@@ -104,7 +104,10 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
                 msg = create_producer_message(
                     rag_query=chatbot_query.query, stream=True, number=1, total=1
                 )
-                kafka_producer.send(topic=outcome.diseases[0], value=msg.model_dump())
+                kafka_producer.send(
+                    topic=f"rag-module-{outcome.diseases[0]}", 
+                    value=msg.model_dump()
+                )
             case Grade.HARD:
                 for i, dsq in enumerate(outcome.diseases, start=1):
                     msg = create_producer_message(
@@ -113,7 +116,10 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
                         number=i,
                         total=len(outcome.diseases),
                     )
-                    kafka_producer.send(topic=dsq.disease, value=msg.model_dump())
+                    kafka_producer.send(
+                        topic=f"rag-module-{dsq.disease}", 
+                        value=msg.model_dump()
+                    )
     except Exception as e:
         logger.error(f"Error while trying to perform an action: {e}")
         raise ActingException("Action not performed")

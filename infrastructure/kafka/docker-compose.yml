@@ -1,8 +1,7 @@
 services:
   kafka:
-    image: bitnami/kafka:${KAFKA_VERSION}
+    image: bitnami/kafka:latest
     hostname: kafka
-    container_name: kafka
     ports:
       - "${KAFKA_PORT}:${KAFKA_PORT}"
       - "${KAFKA_EXTERNAL_PORT}:${KAFKA_EXTERNAL_PORT}"
@@ -18,8 +17,12 @@ services:
       - ALLOW_PLAINTEXT_LISTENER=yes
     volumes:
       - kafka_data:/bitnami/kafka
-    networks:
-      - mod-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
     healthcheck:
       test: kafka-topics.sh --bootstrap-server localhost:${KAFKA_PORT} --list || exit 1
       interval: 30s
@@ -28,21 +31,24 @@ services:
       start_period: 30s
 
   kafka-init:
-    image: bitnami/kafka:${KAFKA_VERSION}
+    image: bitnami/kafka:latest
     depends_on:
       - kafka
     entrypoint: ["/bin/bash", "/init-scripts/create-topics.sh"]
     volumes:
-      - ./init-scripts:/init-scripts
+      - ../../init-scripts:/init-scripts
       - ../../config.json:/app/config.json
-    networks:
-      - mod-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
-    container_name: kafka-ui
     ports:
-      - "${KAFKA_UI_PORT}:8080"
+      - "${KAFKA_UI_PORT}:${KAFKA_UI_PORT}"
     environment:
       - KAFKA_CLUSTERS_0_NAME=kafka-kraft-cluster
       - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:${KAFKA_PORT}
@@ -50,10 +56,14 @@ services:
       - SERVER_SERVLET_CONTEXT_PATH=/
     depends_on:
       - kafka
-    networks:
-      - mod-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
     healthcheck:
-      test: wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+      test: wget --quiet --tries=1 --spider http://localhost:${KAFKA_UI_PORT}/actuator/health || exit 1
       interval: 30s
       timeout: 10s
       retries: 3
@@ -64,6 +74,6 @@ volumes:
     driver: local
 
 networks:
-  mod-network:
+  default:
     name: mod-network
     external: true
