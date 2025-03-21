@@ -62,7 +62,7 @@ async def reader_kafka():
                         response = RagResponse(**value)
                         logger.info(f"Received message: {response}")
 
-                        #await handle_rag_response(response)
+                        await handle_rag_response(response)
 
                     except Exception as e:
                         logger.error(f"Error processing message: {str(e)}")
@@ -71,3 +71,28 @@ async def reader_kafka():
         logger.error(f"Consumer error: {e}")
     finally:
         logger.info("Consumer stopped")
+
+
+async def handle_rag_response(rag_response: RagResponse):
+    user_id = rag_response.user_id
+    
+    if user_id not in active_queries:
+        active_queries[user_id] = {
+            "original_query": rag_response.original_query,
+            "responses": {},
+            "received_numbers": set(),
+            "total": rag_response.total,
+            "stream": rag_response.stream
+        }
+    
+    query_data = active_queries[user_id]
+    
+    query_data["responses"][rag_response.disease] = rag_response.response
+    query_data["received_numbers"].add(rag_response.number)
+    
+    if len(query_data["received_numbers"]) == query_data["total"]:
+        expected_numbers = set(range(1, query_data["total"] + 1))
+        if query_data["received_numbers"] == expected_numbers:
+            logger.info(f"All {query_data['total']} sub-queries received for user {user_id}, synthesizing responses")
+        else:
+            logger.warning(f"Missing responses for user {user_id}. Expected: {expected_numbers}, Got: {query_data['received_numbers']}")
