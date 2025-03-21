@@ -1,6 +1,7 @@
 from kafka import KafkaConsumer
 from ollama import Client
 from dotenv import load_dotenv
+import redis
 import os
 import json
 import string
@@ -23,3 +24,10 @@ def prepare_prompt(template: str, **kwargs) -> str:
     with open(template, "r") as f:
         content = f.read()
     return string.Template(content).substitute(kwargs)
+
+
+redis_password = os.getenv("REDIS_PASSWORD")
+redis_port = (lambda p: int(p) if p else 6379)(os.getenv("REDIS_PORT"))
+redis_client = redis.Redis(
+    host="localhost", port=redis_port, password=redis_password, decode_responses=True
+)
