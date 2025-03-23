@@ -6,11 +6,20 @@ from enum import Enum
 
 import redis
 from groq import Groq
+from typing import List
 from kafka import KafkaProducer
 from loguru import logger
 
+CONFIG_FILE_PATH = "/app/config.json"
 LOG_FILE_PATH = "/app/logs/orchestrator.log"
+
 logger.add(LOG_FILE_PATH, rotation="10 MB")
+
+
+def get_diseases_from_config_file() -> List[str]:
+    with open(CONFIG_FILE_PATH, "r") as f:
+        config = json.load(f)
+    return config["rag_modules"]
 
 
 class PromptTemplate(Enum):
@@ -56,7 +65,5 @@ kafka_producer = KafkaProducer(
     reconnect_backoff_max_ms=10_000,
 )
 
+
 chat_history_url = os.getenv("CHAT_HISTORY_URL")
-
-
-diseases = ["diabetes", "multiple-sclerosis", "hypertension"]

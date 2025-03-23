@@ -8,6 +8,7 @@ services:
       - "${ORCHESTRATOR_PORT}:8080"
     volumes:
       - orchestrator_logs:/app/logs
+      - ../config.json:/app/config.json
     environment:
       - CLUSTER_HOST=${CLUSTER_HOST}
       - CLUSTER_PORT=${CLUSTER_PORT}

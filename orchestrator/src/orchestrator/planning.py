@@ -2,11 +2,11 @@ from enum import Enum
 from pydantic import BaseModel
 from .configurations import (
     logger,
+    get_diseases_from_config_file,
     PromptTemplate,
     prepare_prompt,
     llm_groq,
     kafka_producer,
-    diseases,
     redis_client,
     chat_history_url,
 )
@@ -18,6 +18,8 @@ import json
 
 
 REASONING_ATTEMPTS = 5
+
+diseases = get_diseases_from_config_file()
 
 
 class ChatbotQuery(BaseModel):
@@ -77,6 +79,7 @@ def create_rag_module_message(
 
 
 async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
+    logger.info(f"Diseases: {diseases}")
     params = {"query": chatbot_query.query, "diseases": diseases}
     prompt = prepare_prompt(template=PromptTemplate.PLANNING.value, **params)
     for i in range(REASONING_ATTEMPTS):
