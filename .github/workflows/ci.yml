@@ -1,0 +1,90 @@
+name: Mixture-of-Doctors CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          
+      - name: Install uv
+        run: pip install uv
+        
+      - name: Install dependencies
+        run: uv sync --all-packages
+        
+      - name: Run Ruff linter
+        run: uv run ruff check --output-format=github
+        
+      - name: Run Ruff formatter check
+        run: uv run ruff format --check --diff
+        
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          
+      - name: Install uv
+        run: pip install uv
+        
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: Install pyright
+        run: uv pip install pyright
+
+      - name: Run Pyright
+        run: uv run pyright
+        
+  test-chat-history:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          
+      - name: Install uv
+        run: pip install uv
+        
+      - name: Install dependencies
+        run: cd chat-history && uv sync --all-packages
+        
+      - name: Run chat-history tests
+        run: cd chat-history && uv run -v pytest
+  
+  test-frontend-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          
+      - name: Install uv
+        run: pip install uv
+        
+      - name: Install dependencies
+        run: cd frontend/cli && uv sync --all-packages
+        
+      - name: Run frontend/cli tests
+        run: cd frontend/cli && uv run pytest -v tests/
