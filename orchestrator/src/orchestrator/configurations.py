@@ -8,7 +8,6 @@ import redis
 from groq import Groq
 from kafka import KafkaProducer
 from loguru import logger
-from ollama import Client
 
 LOG_FILE_PATH = "/app/logs/orchestrator.log"
 logger.add(LOG_FILE_PATH, rotation="10 MB")
@@ -27,12 +26,15 @@ def prepare_prompt(template: str, **kwargs) -> str:
     return string.Template(content).substitute(kwargs)
 
 
-# LLM client configuration
+# LLM client configuration (ollama)
+"""
 cluster_host = os.getenv("CLUSTER_HOST")
 cluster_port = os.getenv("CLUSTER_PORT")
 llm = Client(host=f"http://{cluster_host}:{cluster_port}")
+"""
 
-# LLM groq client configuration
+
+# LLM client configuration (groq)
 llm_groq = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 

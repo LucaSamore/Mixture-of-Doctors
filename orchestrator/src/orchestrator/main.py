@@ -1,9 +1,8 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from .planning import reason, act, ChatbotQuery, ConversationModel
+from .planning import reason, act, ChatbotQuery
 from .exceptions import PlanningException
-import httpx
-from .configurations import chat_history_url, logger
+from .configurations import logger
 
 app = FastAPI()
 
@@ -23,19 +22,3 @@ async def handle_request(request: ChatbotQuery):
 @app.get("/health", status_code=200)
 async def healthcheck():
     return JSONResponse(status_code=200, content={"status": "UP"})
-
-
-@app.get("/", status_code=200)
-async def test():
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{chat_history_url}/Luca",
-            )
-            # response.raise_for_status()
-            context = response.json()
-            data = ConversationModel.model_validate(context)
-            logger.info(data)
-            return response.json()
-        except Exception as e:
-            return JSONResponse(status_code=500, content={"detail": str(e)})
