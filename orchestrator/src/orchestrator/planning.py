@@ -110,7 +110,8 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
                     rag_query=chatbot_query.query, stream=True, number=1, total=1
                 )
                 kafka_producer.send(
-                    topic=f"rag-module-{outcome.diseases[0]}", value=msg.model_dump()
+                    topic=f"rag-module-{outcome.diseases[0].disease}",
+                    value=msg.model_dump(),
                 )
             case Grade.HARD:
                 for i, dsq in enumerate(outcome.diseases, start=1):
@@ -146,7 +147,6 @@ async def generate_answer(
         model="llama-3.3-70b-versatile",
         stream=True,
     )
-
     for chunk in stream:
         content = chunk.choices[0].delta.content
         logger.info(content)
