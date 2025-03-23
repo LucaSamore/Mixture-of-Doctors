@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from .planning import reason, act, ChatbotQuery
 from .exceptions import PlanningException
-from .configurations import logger
 
 app = FastAPI()
 
@@ -15,7 +14,6 @@ async def planning_exception_handler(_: Request, exc: PlanningException):
 @app.post("/", status_code=204)
 async def handle_request(request: ChatbotQuery):
     outcome = await reason(request)
-    logger.info(f"reasoning outcome: {outcome}")
     await act(outcome, request)
 
 

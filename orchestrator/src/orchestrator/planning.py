@@ -20,6 +20,11 @@ import json
 REASONING_ATTEMPTS = 5
 
 
+class ChatbotQuery(BaseModel):
+    user_id: str
+    query: str
+
+
 class ConversationItem(BaseModel):
     question: str
     answer: str
@@ -30,11 +35,6 @@ class ConversationModel(BaseModel):
     username: str
     created_at: datetime
     conversation: List[ConversationItem]
-
-
-class ChatbotQuery(BaseModel):
-    user_id: str
-    query: str
 
 
 class Grade(Enum):
@@ -54,13 +54,26 @@ class ReasoningOutcome(BaseModel):
     reasoning: str
 
 
-class ProducerMessage(BaseModel):
+class RAGModuleMessage(BaseModel):
     user_id: str
     original_query: str
     rag_query: str
     stream: bool
     number: int
     total: int
+
+
+def create_rag_module_message(
+    chatbot_query: ChatbotQuery, rag_query: str, stream: bool, number: int, total: int
+) -> RAGModuleMessage:
+    return RAGModuleMessage(
+        user_id=chatbot_query.user_id,
+        original_query=chatbot_query.query,
+        rag_query=rag_query,
+        stream=stream,
+        number=number,
+        total=total,
+    )
 
 
 async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
@@ -83,61 +96,59 @@ async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
 
 
 async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
-    def create_producer_message(
-        rag_query: str, stream: bool, number: int, total: int
-    ) -> ProducerMessage:
-        return ProducerMessage(
-            user_id=chatbot_query.user_id,
-            original_query=chatbot_query.query,
-            rag_query=rag_query,
-            stream=stream,
-            number=number,
-            total=total,
-        )
-
     try:
         match outcome.classification:
             case Grade.EASY:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"{chat_history_url}/{chatbot_query.user_id}",
-                    )
-                    context = response.json()
-                    data = ConversationModel.model_validate(context)
-                await generate_answer(chatbot_query, data.conversation)
+                await answer(chatbot_query)
             case Grade.MEDIUM:
-                msg = create_producer_message(
-                    rag_query=chatbot_query.query, stream=True, number=1, total=1
-                )
-                kafka_producer.send(
-                    topic=f"rag-module-{outcome.diseases[0].disease}",
-                    value=msg.model_dump(),
-                )
+                await ask_single_doctor(chatbot_query, outcome.diseases[0].disease)
             case Grade.HARD:
-                for i, dsq in enumerate(outcome.diseases, start=1):
-                    msg = create_producer_message(
-                        rag_query=dsq.question,
-                        stream=False,
-                        number=i,
-                        total=len(outcome.diseases),
-                    )
-                    kafka_producer.send(
-                        topic=f"rag-module-{dsq.disease}", value=msg.model_dump()
-                    )
+                await ask_many_doctors(chatbot_query, outcome.diseases)
     except Exception as e:
         logger.error(f"Error while trying to perform an action: {e}")
         raise ActingException("Action not performed")
+
+
+async def answer(chatbot_query: ChatbotQuery) -> None:
+    conversation = await fetch_chat_history_for_user(chatbot_query.user_id)
+    await generate_answer(chatbot_query, conversation)
+
+
+async def ask_single_doctor(chatbot_query: ChatbotQuery, disease: str) -> None:
+    msg = create_rag_module_message(
+        chatbot_query, chatbot_query.query, stream=True, number=1, total=1
+    )
+    topic = f"rag-module-{disease}"
+    logger.info(f"Sending message to {topic}: {msg.model_dump_json(indent=4)}")
+    kafka_producer.send(topic=topic, value=msg.model_dump())
+
+
+async def ask_many_doctors(
+    chatbot_query: ChatbotQuery, questions: List[DiseaseSpecificQuestion]
+) -> None:
+    for i, dsq in enumerate(questions, start=1):
+        topic = f"rag-module-{dsq.disease}"
+        msg = create_rag_module_message(
+            chatbot_query, dsq.question, stream=False, number=i, total=len(diseases) - 1
+        )
+        logger.info(f"Sending message to {topic}: {msg.model_dump_json(indent=4)}")
+        kafka_producer.send(topic=topic, value=msg.model_dump())
+
+
+async def fetch_chat_history_for_user(user_id: str) -> List[ConversationItem]:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{chat_history_url}/{user_id}")
+        response.raise_for_status()
+        model = ConversationModel.model_validate(response.json())
+    return model.conversation
 
 
 async def generate_answer(
     chatbot_query: ChatbotQuery, conversation: List[ConversationItem]
 ) -> None:
     context = json.dumps([item.model_dump_json() for item in conversation], indent=4)
-    logger.info(context)
-    params = {
-        "query": chatbot_query.query,
-        "context": context,
-    }
+    logger.info(f"Context: {context}")
+    params = {"query": chatbot_query.query, "context": context}
     prompt = prepare_prompt(template=PromptTemplate.EASY_QUERIES.value, **params)
     stream = llm_groq.chat.completions.create(
         messages=[
@@ -150,13 +161,13 @@ async def generate_answer(
     for chunk in stream:
         content = chunk.choices[0].delta.content
         logger.info(content)
-        entry_id = redis_client.xadd(
+        redis_client.xadd(
             name=chatbot_query.user_id,
             fields={
                 "query": chatbot_query.query,
                 "response": str(content),
-                "done": str(chunk.choices[0].finish_reason),
+                "done": str(
+                    chunk.choices[0].finish_reason
+                ),  # finish_reason will be equal to "stop" when stream is done
             },
         )
-        # finish_reason will be equal to "stop"
-        logger.info(f"Entry added with ID: {entry_id}")
