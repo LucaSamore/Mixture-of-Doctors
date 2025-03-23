@@ -16,6 +16,7 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_PORT=${REDIS_PORT}
       - CHAT_HISTORY_URL=${CHAT_HISTORY_URL}
+      - GROQ_API_KEY=${GROQ_API_KEY}
     deploy:
       mode: replicated
       replicas: 1

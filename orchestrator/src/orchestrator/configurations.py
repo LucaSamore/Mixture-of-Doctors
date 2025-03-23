@@ -5,6 +5,7 @@ import string
 from enum import Enum
 
 import redis
+from groq import Groq
 from kafka import KafkaProducer
 from loguru import logger
 from ollama import Client
@@ -15,6 +16,7 @@ logger.add(LOG_FILE_PATH, rotation="10 MB")
 
 class PromptTemplate(Enum):
     """Enumeration of available prompt templates."""
+
     PLANNING = "./prompts/planning.md"
     EASY_QUERIES = "./prompts/easy_queries.md"
 
@@ -30,13 +32,16 @@ cluster_host = os.getenv("CLUSTER_HOST")
 cluster_port = os.getenv("CLUSTER_PORT")
 llm = Client(host=f"http://{cluster_host}:{cluster_port}")
 
+# LLM groq client configuration
+llm_groq = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
 
 # Redis client configuration
 redis_client = redis.Redis(
-    host=os.getenv("REDIS_HOST", "redis"), 
-    port=(lambda p: int(p) if p else 6379)(os.getenv("REDIS_PORT")), 
-    password=os.getenv("REDIS_PASSWORD", "redispassword"), 
-    decode_responses=True
+    host=os.getenv("REDIS_HOST", "redis"),
+    port=(lambda p: int(p) if p else 6379)(os.getenv("REDIS_PORT")),
+    password=os.getenv("REDIS_PASSWORD", "redispassword"),
+    decode_responses=True,
 )
 
 # Kafka producer configuration

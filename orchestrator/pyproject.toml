@@ -13,6 +13,7 @@ dependencies = [
     "fastapi[standard]>=0.115.11",
     "kafka-python>=2.0.6",
     "ollama>=0.4.7",
+    "groq>=0.20.0",
 ]
 
 [project.scripts]

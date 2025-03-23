@@ -4,7 +4,7 @@ from .configurations import (
     logger,
     PromptTemplate,
     prepare_prompt,
-    llm,
+    llm_groq,
     kafka_producer,
     diseases,
     redis_client,
@@ -69,9 +69,14 @@ async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
     for i in range(REASONING_ATTEMPTS):
         try:
             logger.info(f"Reasoning attempt #{i + 1}/{REASONING_ATTEMPTS}")
-            generate_response = llm.generate(model="llama3.3:latest", prompt=prompt)
-            logger.info(generate_response)
-            return ReasoningOutcome.model_validate_json(generate_response.response)
+            chat_completion = llm_groq.chat.completions.create(
+                messages=[{"role": "system", "content": prompt}],
+                model="llama-3.3-70b-versatile",
+                stream=False,
+            )
+            content = chat_completion.choices[0].message.content
+            logger.info(content)
+            return ReasoningOutcome.model_validate_json(str(content))
         except Exception as e:
             logger.error(f"Error on attempt #{i + 1}/{REASONING_ATTEMPTS}: {e}")
     raise ReasoningException(f"Could not reason after {REASONING_ATTEMPTS} attempt(s)")
@@ -94,19 +99,18 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
         match outcome.classification:
             case Grade.EASY:
                 async with httpx.AsyncClient() as client:
-                    context = await client.get(
+                    response = await client.get(
                         f"{chat_history_url}/{chatbot_query.user_id}",
                     )
-                    context.raise_for_status()
-                    context = ConversationModel.model_validate_json(context.json())
-                await generate_answer(chatbot_query, context.conversation)
+                    context = response.json()
+                    data = ConversationModel.model_validate(context)
+                await generate_answer(chatbot_query, data.conversation)
             case Grade.MEDIUM:
                 msg = create_producer_message(
                     rag_query=chatbot_query.query, stream=True, number=1, total=1
                 )
                 kafka_producer.send(
-                    topic=f"rag-module-{outcome.diseases[0]}", 
-                    value=msg.model_dump()
+                    topic=f"rag-module-{outcome.diseases[0]}", value=msg.model_dump()
                 )
             case Grade.HARD:
                 for i, dsq in enumerate(outcome.diseases, start=1):
@@ -117,8 +121,7 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
                         total=len(outcome.diseases),
                     )
                     kafka_producer.send(
-                        topic=f"rag-module-{dsq.disease}", 
-                        value=msg.model_dump()
+                        topic=f"rag-module-{dsq.disease}", value=msg.model_dump()
                     )
     except Exception as e:
         logger.error(f"Error while trying to perform an action: {e}")
@@ -128,20 +131,32 @@ async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
 async def generate_answer(
     chatbot_query: ChatbotQuery, conversation: List[ConversationItem]
 ) -> None:
+    context = json.dumps([item.model_dump_json() for item in conversation], indent=4)
+    logger.info(context)
     params = {
         "query": chatbot_query.query,
-        "context": json.dumps([item.model_dump() for item in conversation], indent=4),
+        "context": context,
     }
     prompt = prepare_prompt(template=PromptTemplate.EASY_QUERIES.value, **params)
-    stream = llm.generate(model="llama3.3:latest", prompt=prompt, stream=True)
+    stream = llm_groq.chat.completions.create(
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": chatbot_query.query},
+        ],
+        model="llama-3.3-70b-versatile",
+        stream=True,
+    )
+
     for chunk in stream:
-        logger.info(chunk.response)
+        content = chunk.choices[0].delta.content
+        logger.info(content)
         entry_id = redis_client.xadd(
             name=chatbot_query.user_id,
             fields={
                 "query": chatbot_query.query,
-                "response": chunk.response,
-                "done": str(chunk.done),
+                "response": str(content),
+                "done": str(chunk.choices[0].finish_reason),
             },
         )
+        # finish_reason will be equal to "stop"
         logger.info(f"Entry added with ID: {entry_id}")

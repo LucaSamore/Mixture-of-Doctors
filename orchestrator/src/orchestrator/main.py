@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from .planning import reason, act, ChatbotQuery
+from .planning import reason, act, ChatbotQuery, ConversationModel
 from .exceptions import PlanningException
 import httpx
-from .configurations import chat_history_url
+from .configurations import chat_history_url, logger
 
 app = FastAPI()
 
@@ -16,6 +16,7 @@ async def planning_exception_handler(_: Request, exc: PlanningException):
 @app.post("/", status_code=204)
 async def handle_request(request: ChatbotQuery):
     outcome = await reason(request)
+    logger.info(f"reasoning outcome: {outcome}")
     await act(outcome, request)
 
 
@@ -29,9 +30,12 @@ async def test():
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
-                f"{chat_history_url}test",
+                f"{chat_history_url}/Luca",
             )
-            response.raise_for_status()
+            # response.raise_for_status()
+            context = response.json()
+            data = ConversationModel.model_validate(context)
+            logger.info(data)
             return response.json()
         except Exception as e:
             return JSONResponse(status_code=500, content={"detail": str(e)})
