@@ -4,22 +4,42 @@ import string
 
 from enum import Enum
 
+import sys
 import redis
 from groq import Groq
 from typing import List
 from kafka import KafkaProducer
 from loguru import logger
 
-CONFIG_FILE_PATH = "/app/config.json"
-LOG_FILE_PATH = "/app/logs/orchestrator.log"
+is_test = "pytest" in sys.modules
+
+if is_test:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    CONFIG_FILE_PATH = os.path.join(
+        os.path.dirname(__file__), "..", "..", "config.json"
+    )
+    LOG_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "logs")
+    os.makedirs(LOG_DIR, exist_ok=True)
+    LOG_FILE_PATH = os.path.join(LOG_DIR, "orchestrator.log")
+else:
+    CONFIG_FILE_PATH = "/app/config.json"
+    LOG_FILE_PATH = "/app/logs/orchestrator.log"
 
 logger.add(LOG_FILE_PATH, rotation="10 MB")
 
 
 def get_diseases_from_config_file() -> List[str]:
-    with open(CONFIG_FILE_PATH, "r") as f:
-        config = json.load(f)
-    return config["rag_modules"]
+    try:
+        with open(CONFIG_FILE_PATH, "r") as f:
+            config = json.load(f)
+        return config["rag_modules"]
+    except FileNotFoundError:
+        # Fallback for tests if config file doesn't exist
+        if is_test:
+            return ["diabetes", "multiple-sclerosis", "hypertension"]
+        raise
 
 
 class PromptTemplate(Enum):
@@ -56,14 +76,17 @@ redis_client = redis.Redis(
 )
 
 # Kafka producer configuration
-kafka_producer = KafkaProducer(
-    bootstrap_servers=os.getenv("KAFKA_BROKER"),
-    value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-    retries=5,
-    retry_backoff_ms=1000,
-    reconnect_backoff_ms=1000,
-    reconnect_backoff_max_ms=10_000,
-)
+if is_test:
+    kafka_producer = None
+else:
+    kafka_producer = KafkaProducer(
+        bootstrap_servers=os.getenv("KAFKA_BROKER"),
+        value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+        retries=5,
+        retry_backoff_ms=1000,
+        reconnect_backoff_ms=1000,
+        reconnect_backoff_max_ms=10_000,
+    )
 
 
 chat_history_url = os.getenv("CHAT_HISTORY_URL")
