@@ -25,7 +25,7 @@ services:
     ports:
       - "${REDIS_INSIGHT_PORT}:${REDIS_INSIGHT_PORT}"
     volumes:
-      - redis_insight_data:/db
+      - redis_insight_data:/data
     restart: unless-stopped
     depends_on:
       - redis

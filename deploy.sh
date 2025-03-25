@@ -174,6 +174,59 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
     fi
 done
 
+echo -e "${YELLOW}Waiting for Redis Insight to become ready...${NC}"
+ATTEMPT=0
+
+while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+    if docker service ls --filter "name=redis_redis-insight" --format "{{.Replicas}}" | grep -q "[1-9]/[1-9]"; then
+        echo -e "${GREEN}Redis Insight service is running!${NC}"
+        break
+    fi
+    
+    ATTEMPT=$((ATTEMPT+1))
+    echo -e "${YELLOW}Waiting for Redis Insight to start... ($ATTEMPT/$MAX_ATTEMPTS)${NC}"
+    sleep 5
+    
+    if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+        echo -e "${RED}Timeout waiting for Redis Insight. Check logs with 'docker service logs redis_redis-insight'${NC}"
+    fi
+done
+
+echo -e "Creating Redis database in Redis Insight...${NC}"
+
+# API URL for RedisInsight
+API_URL="http://localhost:${REDIS_INSIGHT_PORT}/api"
+    
+EXISTING_DBS=$(curl -s -X GET "${API_URL}/databases" -H "Content-Type: application/json")
+
+# Check if the database exists
+if echo "$EXISTING_DBS" | grep -q "\"host\":\"${REDIS_HOST}\"" && \
+   echo "$EXISTING_DBS" | grep -q "\"port\":${REDIS_PORT}" && \
+   echo "$EXISTING_DBS" | grep -q "\"name\":\"${REDIS_NAME}\""; then
+    echo -e "${GREEN}Redis database already exists. Skipping database creation.${NC}"
+else
+    echo -e "Adding Redis database...${NC}"
+    
+    # Add the database
+    ADD_RESPONSE=$(curl -s -X POST "${API_URL}/databases" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"host\": \"${REDIS_HOST}\", 
+            \"port\": ${REDIS_PORT},
+            \"username\": \"${REDIS_USERNAME}\",
+            \"password\": \"${REDIS_PASSWORD}\",
+            \"name\": \"${REDIS_NAME}\"
+        }")
+    
+    # Check if the addition was successful
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Successfully added Redis database${NC}"
+    else
+        echo -e "${RED}Error: Failed to add Redis database${NC}"
+        echo -e "${RED}Response: ${ADD_RESPONSE}${NC}"
+    fi
+fi
+
 # Deploy Chat History with Docker Swarm
 echo -e "${YELLOW}Deploying Chat History Stack...${NC}"
 cd chat-history
