@@ -48,7 +48,7 @@ for domain in $DOMAINS; do
     docker-compose -p $project_name up -d
     
     echo "Started $project_name with Qdrant on port $QDRANT_REST_PORT"
-    echo "Qdrant dashboard for $domain available at: http://localhost:$QDRANT_REST_PORT"
+    echo "Qdrant dashboard for $domain available at: http://localhost:$QDRANT_REST_PORT/dashboard"
     
     # Increment domain index for next iteration
     domain_index=$((domain_index + 1))
@@ -59,3 +59,17 @@ done
 
 echo "All RAG modules deployed!"
 echo "Check above for the specific Qdrant dashboard URLs for each domain"
+
+# Install dependencies for ingestion script
+echo "Installing required dependencies for ingestion..."
+cd "$RAG_MODULE_DIR/scripts/"
+pip install -r requirements.txt
+
+echo "Starting data ingestion for each domain..."
+
+for domain in $DOMAINS; do
+    echo "Running ingestion for domain: $domain"
+    python ingest_pubmed.py --domain $domain --query "$domain disease" --count 10
+done
+
+echo "Ingestion complete for all domains!"

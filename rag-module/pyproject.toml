@@ -7,7 +7,12 @@ authors = [
     { name = "Lucia Castellucci", email = "lucia.castellucci2@studio.unibo.it" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "beautifulsoup4>=4.13.3",
+    "nltk>=3.9.1",
+    "qdrant-client>=1.13.3",
+    "sentence-transformers==3.4.1",
+]
 
 [project.scripts]
 rag-module = "rag_module:main"
