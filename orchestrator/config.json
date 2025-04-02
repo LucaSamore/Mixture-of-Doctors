@@ -1,0 +1,3 @@
+{
+    "rag_modules": ["diabetes", "multiple-sclerosis", "hypertension"]
+}

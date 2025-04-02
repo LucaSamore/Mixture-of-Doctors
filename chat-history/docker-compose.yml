@@ -1,0 +1,129 @@
+services:
+  chat-history:
+    image: mod/chat-history:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${CHAT_HISTORY_HOST_PORT}:${CHAT_HISTORY_CONTAINER_PORT}"
+    environment:
+      - CHAT_HISTORY_HOST_PORT=${CHAT_HISTORY_HOST_PORT}
+      - CHAT_HISTORY_CONTAINER_PORT=${CHAT_HISTORY_CONTAINER_PORT}
+      - MONGODB_URL=${MONGODB_URL}
+      - MONGODB_DB=${MONGODB_DB}
+      - MONGO_UI_HOST=${MONGO_UI_HOST}
+      - MONGO_UI_PORT=${MONGO_UI_PORT}
+      - MONGO_PRIMARY_HOST=${MONGO_PRIMARY_HOST}
+      - MONGO1_PORT=${MONGO1_PORT}
+      - MONGO2_PORT=${MONGO2_PORT}
+      - MONGO3_PORT=${MONGO3_PORT}
+    depends_on:
+      - mongo-setup
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  mongo1:
+    image: mongo:latest
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO1_PORT}"]
+    ports:
+      - ${MONGO1_PORT}:${MONGO1_PORT}
+    volumes:
+      - "mongo1_data:/data/db"
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+
+  mongo2:
+    image: mongo:latest
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO2_PORT}"]
+    ports:
+      - ${MONGO2_PORT}:${MONGO2_PORT}
+    volumes:
+      - "mongo2_data:/data/db"
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+
+  mongo3:
+    image: mongo:latest
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "${MONGO3_PORT}"]
+    ports:
+      - ${MONGO3_PORT}:${MONGO3_PORT}
+    volumes:
+      - "mongo3_data:/data/db"
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+  
+  mongo-express:
+    image: mongo-express:latest
+    ports:
+      - "${MONGO_UI_PORT}:8081"
+    environment:
+      - ME_CONFIG_MONGODB_URL=${MONGODB_URL}
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=password
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+      - mongo-setup
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager]
+
+  mongo-setup:
+    image: mongo:latest
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+    command: >
+      bash -c "
+        echo 'Waiting for MongoDB instances to start...'
+        sleep 10
+        until mongo --host mongo1 --port ${MONGO1_PORT} --eval 'print(\"Mongo1 ready\")' > /dev/null 2>&1; do
+          echo 'Waiting for mongo1...'
+          sleep 2
+        done
+        until mongo --host mongo2 --port ${MONGO2_PORT} --eval 'print(\"Mongo2 ready\")' > /dev/null 2>&1; do
+          echo 'Waiting for mongo2...'
+          sleep 2
+        done
+        until mongo --host mongo3 --port ${MONGO3_PORT} --eval 'print(\"Mongo3 ready\")' > /dev/null 2>&1; do
+          echo 'Waiting for mongo3...'
+          sleep 2
+        done
+        echo 'Initializing replica set...'
+        mongo --host mongo1 --port ${MONGO1_PORT} --eval 'rs.status() || rs.initiate({_id:\"rs0\", members:[{_id:0,host:\"mongo1:${MONGO1_PORT}\",priority:1},{_id:1,host:\"mongo2:${MONGO2_PORT}\",priority:0.5},{_id:2,host:\"mongo3:${MONGO3_PORT}\",priority:0.5}]})'
+        echo 'Replica set initialized!'
+      "
+    deploy:
+      restart_policy:
+        condition: on-failure
+      replicas: 1
+
+volumes:
+  mongo1_data:
+  mongo2_data:
+  mongo3_data:
+
+networks:
+  default:
+    name: mod-network
+    external: true

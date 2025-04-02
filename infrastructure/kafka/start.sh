@@ -30,17 +30,51 @@ done
 
 echo "Kafka is ready! Creating topics..."
 
-# Create topic: orchestrator
 kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
-  --topic orchestrator \
+  --topic diabetes \
   --partitions 3 \
   --replication-factor 1
 
-# Create topic: rag-module
-kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
-  --topic rag-module \
-  --partitions 3 \
-  --replication-factor 1
+# Parse config.json to extract RAG module names
+if [ -f "/app/config.json" ]; then
+  echo "Parsing config.json directly..."
+  if grep -q "rag_modules" /app/config.json; then
+    # Extract string between square brackets
+    RAG_MODULES_STRING=$(grep -o '"rag_modules": \[[^]]*\]' /app/config.json | sed 's/"rag_modules": \[\(.*\)\]/\1/')
+    # Convert to array by splitting on commas and removing quotes
+    RAG_MODULES=$(echo $RAG_MODULES_STRING | sed 's/"//g' | sed 's/,/ /g')
+    
+    if [ -z "$RAG_MODULES" ]; then
+      echo "No RAG modules found in config. Creating default topic."
+      RAG_MODULES="default"
+    else
+      echo "Found modules: $RAG_MODULES"
+    fi
+  else
+    echo "Config doesn't contain rag_modules key. Creating default topic."
+    RAG_MODULES="default"
+  fi
+else
+  echo "Config file not found. Creating default topic."
+  RAG_MODULES="default"
+fi
+
+# Create topics for each RAG module
+for module in $RAG_MODULES; do
+  if [ "$module" = "default" ]; then
+    TOPIC="rag-module"
+  else
+    TOPIC="rag-module-$module"
+  fi
+  
+  echo "Creating Kafka topic: $TOPIC"
+  kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+    --topic $TOPIC \
+    --partitions 1 \
+    --replication-factor 1
+    
+  echo "Topic $TOPIC created successfully"
+done
 
 # List created topics
 echo "Topics created successfully! Current topics:"
@@ -58,9 +92,21 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# Start containers
+# Clean up existing containers to avoid cached scripts
+echo -e "${YELLOW}Removing any existing containers to ensure clean state...${NC}"
+docker-compose down -v
+
+# Remove any existing kafka-init container to ensure script is reloaded
+EXISTING_CONTAINER=$(docker ps -a --filter name=kafka-init --format "{{.ID}}")
+if [ ! -z "$EXISTING_CONTAINER" ]; then
+    echo -e "${YELLOW}Removing existing kafka-init container...${NC}"
+    docker rm $EXISTING_CONTAINER
+fi
+
+# Start containers with force-recreate to ensure fresh instances
 echo -e "${YELLOW}Starting Kafka and UI containers...${NC}"
-docker-compose up -d
+docker-compose build --no-cache
+docker-compose up -d --force-recreate
 
 # Wait for Kafka to start
 echo -e "${YELLOW}Waiting for Kafka to start...${NC}"
@@ -98,10 +144,6 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
         echo -e "Docker internal: kafka:9092"
         echo -e "${GREEN}=== UI Access ===${NC}"
         echo -e "Kafka UI: http://localhost:8080"
-        echo -e "${GREEN}=== Pre-configured Topics ===${NC}"
-        echo -e "1. orchestrator"
-        echo -e "2. rag-module"
-        echo -e ""
         echo -e "${YELLOW}To terminate the environment: ${NC}docker-compose down"
         echo -e "${YELLOW}To view logs: ${NC}docker-compose logs -f"
         exit 0

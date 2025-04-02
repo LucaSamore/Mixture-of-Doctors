@@ -1,0 +1,43 @@
+services:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mod/orchestrator:latest
+    ports:
+      - "${ORCHESTRATOR_PORT}:8080"
+    volumes:
+      - orchestrator_logs:/app/logs
+      - ../config.json:/app/config.json
+    environment:
+      - CLUSTER_HOST=${CLUSTER_HOST}
+      - CLUSTER_PORT=${CLUSTER_PORT}
+      - KAFKA_BROKER=${KAFKA_BROKER}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PORT=${REDIS_PORT}
+      - CHAT_HISTORY_URL=${CHAT_HISTORY_URL}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  default:
+    name: mod-network
+    external: true
+
+volumes:
+  orchestrator_logs:

@@ -1,0 +1,46 @@
+services:
+  redis:
+    image: redis:${REDIS_VERSION:-latest}
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redispassword} --appendonly yes
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      update_config:
+        parallelism: 1
+        delay: 10s
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redispassword}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  redis-insight:
+    image: redislabs/redisinsight:${REDIS_INSIGHT_VERSION:-latest}
+    ports:
+      - "${REDIS_INSIGHT_PORT}:${REDIS_INSIGHT_PORT}"
+    volumes:
+      - redis_insight_data:/data
+    restart: unless-stopped
+    depends_on:
+      - redis
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+networks:
+  default:
+    name: mod-network
+    external: true
+
+volumes:
+  redis_data:
+    driver: local
+  redis_insight_data:
+    driver: local
