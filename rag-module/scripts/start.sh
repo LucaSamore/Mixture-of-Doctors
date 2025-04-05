@@ -67,6 +67,47 @@ pip install -r requirements.txt
 
 echo "Starting data ingestion for each domain..."
 
+domain_index=0
+for domain in $DOMAINS; do
+    echo "Deleting all points in the Qdrant collection for domain: $domain"
+    QDRANT_REST_PORT=$((BASE_REST_PORT + (domain_index * 10)))
+    curl -X POST "http://localhost:$QDRANT_REST_PORT/collections/${domain}_docs/points/delete" \
+        -H "Content-Type: application/json" \
+        -d '{"filter": {}}'
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to delete points for domain $domain"
+        exit 1
+    fi
+
+    echo "All points deleted for domain: $domain"
+
+    # Increment domain index for next iteration
+    domain_index=$((domain_index + 1))
+
+done
+
+domain_index=0
+for domain in $DOMAINS; do
+    echo "Deleting all points in the Qdrant collection for domain: $domain"
+    QDRANT_REST_PORT=$((BASE_REST_PORT + (domain_index * 10)))
+    curl -X POST "http://localhost:$QDRANT_REST_PORT/collections/${domain}_docs/points/delete" \
+        -H "Content-Type: application/json" \
+        -d '{"filter": {}}'
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to delete points for domain $domain"
+        exit 1
+    fi
+
+    echo "All points deleted for domain: $domain"
+
+    # Increment domain index for next iteration
+    domain_index=$((domain_index + 1))
+
+done
+
+domain_index=0
 for domain in $DOMAINS; do
     echo "Running ingestion for domain: $domain"
     python ingest_pubmed.py --domain $domain --query "$domain disease" --count 10
