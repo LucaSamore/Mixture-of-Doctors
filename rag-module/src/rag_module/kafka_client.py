@@ -2,12 +2,15 @@ from kafka import KafkaConsumer, KafkaProducer
 import os
 import json
 from pydantic import BaseModel
-from .rag_process import DOMAIN
 from loguru import logger
+from dotenv import load_dotenv
+
+load_dotenv()
 
 type Query = str
 
-SYNTHETIZER_TOPIC = "synthesizer"
+SYNTHESIZER_TOPIC = "synthesizer"
+DOMAIN = os.environ.get("RAG_DOMAIN", "neurological")
 
 
 class RAGModuleMessage(BaseModel):
@@ -19,7 +22,7 @@ class RAGModuleMessage(BaseModel):
     total: int
 
 
-class SyntethizerMessage(BaseModel):
+class SynthesizerMessage(BaseModel):
     user_id: str
     disease: str
     original_query: str
@@ -31,7 +34,11 @@ class SyntethizerMessage(BaseModel):
 
 class KafkaClient:
     def __init__(self):
-        self.topic = os.getenv("KAFKA_TOPIC")
+        self.topic = os.getenv("KAFKA_CONSUMER_TOPIC", "rag-module-disease")
+        if "disease" not in self.topic:
+            raise ValueError("Invalid consumer topic format")
+        else:
+            self.topic = self.topic.replace("disease", DOMAIN)
 
         self.consumer = KafkaConsumer(
             bootstrap_servers=os.getenv("KAFKA_BROKER"),
@@ -49,23 +56,24 @@ class KafkaClient:
         )
 
     def get_message_from_queue(self) -> RAGModuleMessage | None:
+        logger.info(f"Reading message from {self.topic}")
         for msg in self.consumer:
             return RAGModuleMessage.model_validate_json(msg.value)
         return None
 
     def send_message_to_queue(self, stream, incoming_message: RAGModuleMessage) -> None:
-        logger.info(f"Sending stream message to {SYNTHETIZER_TOPIC}")
+        logger.info(f"Sending stream message to {SYNTHESIZER_TOPIC}")
         for chunk in stream:
             content = chunk.choices[0].delta.content
-            synthetizer_message = self.create_synthetizer_message(
+            synthesizer_message = self.create_synthesizer_message(
                 incoming_message=incoming_message, response=content
             )
-            self.producer.send(SYNTHETIZER_TOPIC, synthetizer_message.model_dump_json())
+            self.producer.send(SYNTHESIZER_TOPIC, synthesizer_message.model_dump_json())
 
-    def create_synthetizer_message(
+    def create_synthesizer_message(
         self, incoming_message: RAGModuleMessage, response: str
-    ) -> SyntethizerMessage:
-        return SyntethizerMessage(
+    ) -> SynthesizerMessage:
+        return SynthesizerMessage(
             user_id=incoming_message.user_id,
             disease=DOMAIN,
             original_query=incoming_message.original_query,

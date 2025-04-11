@@ -11,6 +11,10 @@ services:
       # Add Qdrant connection details
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
+      # Add Kafka connection details
+      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092}
+      - KAFKA_CONSUMER_TOPIC=${KAFKA_CONSUMER_TOPIC:-consumer_topic}
+      - KAFKA_PRODUCER_TOPIC=${KAFKA_PRODUCER_TOPIC:-producer_topic}
     volumes:
       - ../config.json:/app/config.json
     networks:
