@@ -12,7 +12,10 @@ load_dotenv()
 consumer = KafkaConsumer(
     bootstrap_servers=os.getenv("KAFKA_BROKER"),
     value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+    group_id="group-synthesizer",
+    enable_auto_commit=False,
 )
+consumer.subscribe(["synthesizer"])
 
 
 cluster_host = os.getenv("CLUSTER_HOST")

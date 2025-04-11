@@ -7,7 +7,6 @@ import asyncio
 
 
 active_queries: Dict[str, Dict] = {}
-consumer_kafka_running = False
 consumer_task = None
 
 
@@ -22,37 +21,16 @@ class RagResponse(BaseModel):
 
 
 async def start_consumer():
-    global consumer_kafka_running, consumer_task
-
-    if consumer_kafka_running:
-        return
-
-    consumer_kafka_running = True
-    consumer_task = asyncio.create_task(reader_kafka())
+    global consumer_task
+    consumer_task = asyncio.create_task(run_reader())
 
 
-async def stop_consumer():
-    global consumer_kafka_running, consumer_task
-
-    if consumer_kafka_running and consumer_task:
-        consumer_kafka_running = False
-        consumer.close()
-        await consumer_task
-
-
-async def reader_kafka():
-    global consumer_kafka_running
-
+async def run_reader():
     try:
-        consumer.subscribe(["synthesizer"])
+        while True:
+            consumed_messages = consumer.poll(timeout_ms=1)
 
-        while consumer_kafka_running:
-            consume_messages = consumer.poll(timeout_ms=1)
-
-            if consume_messages is None:
-                continue
-
-            for partition, messages in consume_messages.items():
+            for partition, messages in consumed_messages.items():
                 for message in messages:
                     if message.error() is not None:
                         logger.error(f"Consumer error: {message.error()}")
@@ -60,49 +38,71 @@ async def reader_kafka():
                     try:
                         value = json.loads(message.value().decode("utf-8"))
                         response = RagResponse(**value)
+                        await handle_response(response)
                         logger.info(f"Received message: {response}")
-
-                        await handle_rag_response(response)
-
                     except Exception as e:
                         logger.error(f"Error processing message: {str(e)}")
 
     except Exception as e:
+        consumer.close()
         logger.error(f"Consumer error: {e}")
     finally:
+        consumer.close()
         logger.info("Consumer stopped")
 
 
-async def handle_rag_response(rag_response: RagResponse):
-    user_id = rag_response.user_id
+async def handle_response(response: RagResponse):
+    user_id = response.user_id
 
     if user_id not in active_queries:
         active_queries[user_id] = {
-            "original_query": rag_response.original_query,
+            "original_query": response.original_query,
             "responses": {},
             "received_numbers": set(),
-            "total": rag_response.total,
-            "stream": rag_response.stream,
+            "total": response.total,
+            "stream": response.stream,
         }
-
     query_data = active_queries[user_id]
+    query_data["responses"][response.disease] = response.response
+    query_data["received_numbers"].add(response.number)
 
-    query_data["responses"][rag_response.disease] = rag_response.response
-    query_data["received_numbers"].add(rag_response.number)
+    if not _is_query_complete(user_id, query_data):
+        return
 
-    if len(query_data["received_numbers"]) == query_data["total"]:
-        expected_numbers = set(range(1, query_data["total"] + 1))
-        if query_data["received_numbers"] == expected_numbers:
-            logger.info(
-                f"All {query_data['total']} sub-queries received for user {user_id}, synthesizing responses"
-            )
-        else:
-            logger.warning(
-                f"Missing responses for user {user_id}. Expected: {expected_numbers}, Got: {query_data['received_numbers']}"
-            )
+    logger.info(f"All {query_data['total']} sub-queries received for user {user_id}")
+
+    _commit_query(user_id)
+    await synthesize_response(query_data)
+    del active_queries[user_id]
 
 
-async def synthesize_responses(query_data: Dict):
+def _is_query_complete(user_id, query_data):
+    received_count = len(query_data["received_numbers"])
+    total_expected = query_data["total"]
+
+    if received_count < total_expected:
+        return False
+
+    expected_numbers = set(range(1, total_expected + 1))
+    if query_data["received_numbers"] != expected_numbers:
+        logger.warning(
+            f"Missing responses for user {user_id}. "
+            f"Expected: {expected_numbers}, Got: {query_data['received_numbers']}"
+        )
+        return False
+
+    return True
+
+
+def _commit_query(user_id):
+    try:
+        consumer.commit()
+        logger.info(f"Successfully committed offsets for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error committing offsets: {e}")
+
+
+async def synthesize_response(query_data: Dict):
     try:
         diseases_responses = []
         for disease, response in query_data.items():
@@ -125,12 +125,9 @@ async def generate_synthesis(
     original_query: str, formatted_responses: str, stream: bool
 ):
     params = {"original_query": original_query, "responses": formatted_responses}
-
     prompt = prepare_prompt(template="./synth_prompt.md", **params)
-
     response = llm.generate(model="llama3.3:latest", prompt=prompt, stream=stream)
     logger.info(f"Response synthesized {response}")
-
     return response
 
 
