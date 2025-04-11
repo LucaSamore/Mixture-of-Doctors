@@ -2,16 +2,14 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Copy requirements first for better caching
-COPY requirements.txt .
 RUN pip install --upgrade pip
+
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code to the container
 COPY . .
 
-#EXPOSE 8000
+EXPOSE 8000
 ENV PORT=8080
 
-# Default command to start the service
-CMD ["python", "-m", "src.rag_module.rag_module"]
+CMD ["python", "-m", "src.rag_module.rag_process"]

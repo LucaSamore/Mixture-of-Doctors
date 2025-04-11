@@ -1,18 +1,19 @@
 from .kafka_client import KafkaClient, RAGModuleMessage
+from datetime import datetime
+from dotenv import load_dotenv
+from groq import Groq
+from loguru import logger
+from pydantic import BaseModel
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Payload
 from sentence_transformers import SentenceTransformer
 from typing import List
-from loguru import logger
-from datetime import datetime
-from pydantic import BaseModel
-import os
-import json
+import asyncio
 import httpx
-import string
+import os
 import redis
-from groq import Groq
-from dotenv import load_dotenv
+import string
+import json
 
 load_dotenv()
 
@@ -132,3 +133,21 @@ async def fetch_chat_history_for_user(user_id: str) -> List[ConversationItem]:
         response.raise_for_status()
         model = ConversationModel.model_validate(response.json())
     return model.conversation
+
+
+async def main_loop():
+    logger.info(f"Starting RAG process for domain: {DOMAIN}")
+    logger.info("Waiting for incoming messages...")
+
+    while True:
+        try:
+            await handle_incoming_message()
+            await asyncio.sleep(0.1)
+        except Exception as e:
+            logger.error(f"Error processing message: {e}")
+            await asyncio.sleep(1)
+
+
+if __name__ == "__main__":
+    logger.info(f"RAG process initialized with domain: {DOMAIN}")
+    asyncio.run(main_loop())
