@@ -68,7 +68,10 @@ class KafkaClient:
             synthesizer_message = self.create_synthesizer_message(
                 incoming_message=incoming_message, response=content
             )
-            self.producer.send(SYNTHESIZER_TOPIC, synthesizer_message.model_dump_json())
+            key = synthesizer_message.original_query  # TODO: convert to query_id
+            self.producer.send(
+                SYNTHESIZER_TOPIC, key, synthesizer_message.model_dump_json()
+            )
 
     def create_synthesizer_message(
         self, incoming_message: RAGModuleMessage, response: str
