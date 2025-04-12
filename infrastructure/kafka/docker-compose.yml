@@ -34,10 +34,10 @@ services:
     image: bitnami/kafka:latest
     depends_on:
       - kafka
-    entrypoint: ["/bin/bash", "/init-scripts/create-topics.sh"]
+    entrypoint: ["/bin/bash", "/scripts/create-topics.sh"]
     volumes:
-      - ../../init-scripts:/init-scripts
       - ../../config.json:/app/config.json
+      - ./scripts:/scripts
     deploy:
       replicas: 1
       restart_policy:
@@ -72,7 +72,7 @@ services:
 volumes:
   kafka_data:
     driver: local
-
+  
 networks:
   default:
     name: mod-network
