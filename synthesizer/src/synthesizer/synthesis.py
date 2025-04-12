@@ -1,13 +1,14 @@
 from loguru import logger
 from pydantic import BaseModel
 from typing import Dict
-from .utilities import llm, consumer, prepare_prompt, redis_client
-import json
+from .utilities import llm_groq, consumer, prepare_prompt, redis_client
 import asyncio
-
+import os
 
 active_queries: Dict[str, Dict] = {}
 consumer_task = None
+PROMPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT = os.path.join(PROMPT_DIR, "./prompt/synth_prompt.md")
 
 
 class RagResponse(BaseModel):
@@ -23,26 +24,17 @@ class RagResponse(BaseModel):
 async def start_consumer():
     global consumer_task
     consumer_task = asyncio.create_task(run_reader())
+    logger.info("Consumer started")
 
 
 async def run_reader():
     try:
+        logger.info("Starting Kafka message polling...")
         while True:
-            consumed_messages = consumer.poll(timeout_ms=1)
-
-            for partition, messages in consumed_messages.items():
-                for message in messages:
-                    if message.error() is not None:
-                        logger.error(f"Consumer error: {message.error()}")
-                        continue
-                    try:
-                        value = json.loads(message.value().decode("utf-8"))
-                        response = RagResponse(**value)
-                        await handle_response(response)
-                        logger.info(f"Received message: {response}")
-                    except Exception as e:
-                        logger.error(f"Error processing message: {str(e)}")
-
+            for msg in consumer:
+                logger.info(f"Received message: {msg.value}")
+                response = RagResponse(**msg.value)
+                await handle_response(response)
     except Exception as e:
         consumer.close()
         logger.error(f"Consumer error: {e}")
@@ -56,6 +48,7 @@ async def handle_response(response: RagResponse):
 
     if user_id not in active_queries:
         active_queries[user_id] = {
+            "user_id": user_id,
             "original_query": response.original_query,
             "responses": {},
             "received_numbers": set(),
@@ -105,13 +98,16 @@ def _commit_query(user_id):
 async def synthesize_response(query_data: Dict):
     try:
         diseases_responses = []
-        for disease, response in query_data.items():
+        for disease, response in query_data["responses"].items():
             diseases_responses.append(f"### {disease.upper()} | RESPONSE:\n{response}")
         responses = "\n\n".join(diseases_responses)
 
+        logger.info(f"Responses to synthesize: {responses}")
         response = await generate_synthesis(
             query_data["original_query"], responses, query_data["stream"]
         )
+
+        logger.info(f"Response generated: {response}")
 
         await stream_to_redis(
             query_data["user_id"], query_data["original_query"], response
@@ -125,21 +121,26 @@ async def generate_synthesis(
     original_query: str, formatted_responses: str, stream: bool
 ):
     params = {"original_query": original_query, "responses": formatted_responses}
-    prompt = prepare_prompt(template="./synth_prompt.md", **params)
-    response = llm.generate(model="llama3.3:latest", prompt=prompt, stream=stream)
+    prompt = prepare_prompt(template=SCRIPT, **params)
+    # response = llm.generate(model="llama3.3:latest", prompt=prompt, stream=stream)
+    response = llm_groq.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "system", "content": prompt}],
+        stream=stream,
+    )
     logger.info(f"Response synthesized {response}")
     return response
 
 
-async def stream_to_redis(user_id: str, query: str, stream):
-    for chunk in stream:
-        logger.info(f"Synthesis chunk: {chunk.response}")
-        entry_id = redis_client.xadd(
+async def stream_to_redis(user_id: str, query: str, response):
+    for chunk in response:
+        content = chunk.choices[0].delta.content
+        logger.info(content)
+        redis_client.xadd(
             name=user_id,
             fields={
                 "query": query,
-                "response": chunk.response,
-                "done": str(chunk.done),
+                "response": str(content),
+                "done": True if content == "" else False,
             },
         )
-        logger.info(f"Entry added with ID: {entry_id}")

@@ -4,6 +4,7 @@ annotated-types==0.7.0
     # via pydantic
 anyio==4.9.0
     # via
+    #   groq
     #   httpx
     #   starlette
 certifi==2025.1.31
@@ -16,9 +17,13 @@ colorama==0.4.6
     # via
     #   click
     #   loguru
+distro==1.9.0
+    # via groq
 dotenv==0.9.9
     # via synthesizer (pyproject.toml)
 fastapi==0.115.11
+    # via synthesizer (pyproject.toml)
+groq==0.22.0
     # via synthesizer (pyproject.toml)
 h11==0.14.0
     # via
@@ -27,7 +32,9 @@ h11==0.14.0
 httpcore==1.0.7
     # via httpx
 httpx==0.28.1
-    # via ollama
+    # via
+    #   groq
+    #   ollama
 idna==3.10
     # via
     #   anyio
@@ -41,6 +48,7 @@ ollama==0.4.7
 pydantic==2.10.6
     # via
     #   fastapi
+    #   groq
     #   ollama
 pydantic-core==2.27.2
     # via pydantic
@@ -49,12 +57,15 @@ python-dotenv==1.0.1
 redis==5.2.1
     # via synthesizer (pyproject.toml)
 sniffio==1.3.1
-    # via anyio
+    # via
+    #   anyio
+    #   groq
 starlette==0.46.1
     # via fastapi
 typing-extensions==4.12.2
     # via
     #   fastapi
+    #   groq
     #   pydantic
     #   pydantic-core
 uvicorn==0.34.0
