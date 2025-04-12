@@ -6,7 +6,6 @@ services:
       - "${REDIS_PORT}:${REDIS_PORT}"
     volumes:
       - redis_data:/data
-    restart: unless-stopped
     deploy:
       replicas: 1
       restart_policy:
@@ -26,13 +25,13 @@ services:
       - "${REDIS_INSIGHT_PORT}:${REDIS_INSIGHT_PORT}"
     volumes:
       - redis_insight_data:/data
-    restart: unless-stopped
-    depends_on:
-      - redis
     deploy:
       replicas: 1
       restart_policy:
         condition: any
+    depends_on:
+      - redis
+    user: root
 
 networks:
   default:
