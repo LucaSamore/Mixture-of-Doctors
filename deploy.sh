@@ -94,6 +94,9 @@ fi
 # Deploy Chat History with Docker Swarm
 deploy_service "chat-history" "chat-history" "mod/chat-history:latest"
 
+echo -e "${GREEN}Waiting for message broker other 20 seconds... ${NC}"
+sleep 20
+
 # Deploy Orchestrator with Docker Swarm
 deploy_service "orchestrator" "orchestrator" "mod/orchestrator:latest"
 
