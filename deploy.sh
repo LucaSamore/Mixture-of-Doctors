@@ -8,6 +8,45 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Function to deploy a service using Docker Swarm with environment variables substitution
+deploy_service() {
+    local service_name=$1
+    local service_dir=$2
+    local image_name=$3  # Optional parameter for building image first
+    
+    echo -e "${YELLOW}Deploying ${service_name} Stack...${NC}"
+    cd ${service_dir}
+    
+    # Build image if specified
+    if [ ! -z "$image_name" ]; then
+        echo -e "${YELLOW}Building ${service_name} image...${NC}"
+        docker build -t ${image_name} .
+    fi
+    
+    # Load environment variables if .env exists
+    if [ -f ".env" ]; then
+        echo -e "${GREEN}Loading environment variables from .env file${NC}"
+        set -a  # automatically export all variables
+        source .env
+        set +a
+    fi
+    
+    # Use a temporary file to avoid pipe issues
+    echo -e "${GREEN}Processing docker-compose.yml with environment variables${NC}"
+    envsubst < docker-compose.yml > docker-compose-processed.yml
+    
+    # Check if processing was successful
+    if [ -s "docker-compose-processed.yml" ]; then
+        echo -e "${GREEN}Deploying ${service_name} stack with processed configuration${NC}"
+        docker stack deploy -c docker-compose-processed.yml ${service_name}
+        rm docker-compose-processed.yml  # Clean up temporary file
+    else
+        echo -e "${RED}Error: Environment variable substitution failed${NC}"
+        exit 1
+    fi
+    cd - > /dev/null
+}
+
 echo -e "${YELLOW}=== Deploying All Services Using Docker Swarm ===${NC}"
 
 # Check if Docker is installed
@@ -114,13 +153,10 @@ EOF
 fi
 
 # Deploy Kafka with Docker Swarm
-echo -e "${YELLOW}Deploying Kafka Stack...${NC}"
 cd infrastructure/kafka
 # Ensure config.json is available to the stack
 cp ../../config.json ./config.json
-export $(grep -v '^#' .env | xargs) 
-# docker stack deploy -c docker-compose.yml kafka
-envsubst < docker-compose.yml | docker stack deploy -c - kafka
+deploy_service "kafka" "." ""
 cd ../..
 
 # Wait for Kafka to be ready
@@ -146,12 +182,7 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
 done
 
 # Deploy Redis with Docker Swarm
-echo -e "${YELLOW}Deploying Redis Stack...${NC}"
-cd infrastructure/redis
-export $(grep -v '^#' .env | xargs)
-# docker stack deploy -c docker-compose.yml redis
-envsubst < docker-compose.yml | docker stack deploy -c - redis
-cd ../..
+deploy_service "redis" "infrastructure/redis" ""
 
 # Wait for Redis to be ready
 echo -e "${YELLOW}Waiting for Redis to become ready...${NC}"
@@ -228,34 +259,10 @@ else
 fi
 
 # Deploy Chat History with Docker Swarm
-echo -e "${YELLOW}Deploying Chat History Stack...${NC}"
-cd chat-history
-
-# Build and tag the image explicitly
-echo -e "${YELLOW}Building chat-history image...${NC}"
-docker build -t mod/chat-history:latest .
-
-# Deploy the stack
-echo -e "${YELLOW}Deploying chat-history stack...${NC}"
-export $(grep -v '^#' .env | xargs)
-# docker stack deploy -c docker-compose.yml chat-history
-envsubst < docker-compose.yml | docker stack deploy -c - chat-history
-cd ..
+deploy_service "chat-history" "chat-history" "mod/chat-history:latest"
 
 # Deploy Orchestrator with Docker Swarm
-echo -e "${YELLOW}Deploying Orchestrator Stack...${NC}"
-cd orchestrator
-
-# Build the orchestrator image
-echo -e "${YELLOW}Building orchestrator image...${NC}"
-docker build -t mod/orchestrator:latest .
-
-# Deploy the stack
-echo -e "${YELLOW}Deploying orchestrator stack...${NC}"
-export $(grep -v '^#' .env | xargs)
-# docker stack deploy -c docker-compose.yml orchestrator
-envsubst < docker-compose.yml | docker stack deploy -c - orchestrator
-cd ..
+deploy_service "orchestrator" "orchestrator" "mod/orchestrator:latest"
 
 # Check deployment status of all services
 echo -e "${YELLOW}Checking deployment status of all stacks...${NC}"
@@ -268,8 +275,8 @@ docker service ls
 echo -e "${GREEN}All services deployed successfully!${NC}"
 echo -e "${GREEN}=== Access Information ===${NC}"
 echo -e "Chat History API: http://localhost:8000"
-echo -e "Redis: localhost:6379"
-echo -e "Orchestrator: http://localhost:8082"
+echo -e "Redis UI: http://localhost:5540"
+echo -e "Orchestrator: http://localhost:8082/docs"
 echo -e "Kafka UI: http://localhost:8080"
 
 # Show current CLI .env content
