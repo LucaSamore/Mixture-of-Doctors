@@ -34,11 +34,7 @@ class SynthesizerMessage(BaseModel):
 
 class KafkaClient:
     def __init__(self):
-        self.topic = os.getenv("KAFKA_CONSUMER_TOPIC", "rag-module-disease")
-        if "disease" not in self.topic:
-            raise ValueError("Invalid consumer topic format")
-        else:
-            self.topic = self.topic.replace("disease", DOMAIN)
+        self.topic = f"rag-module-{DOMAIN}"
 
         self.consumer = KafkaConsumer(
             bootstrap_servers=os.getenv("KAFKA_BROKER"),
