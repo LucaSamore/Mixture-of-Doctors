@@ -22,8 +22,8 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     ports:
-      - "${QDRANT_REST_PORT}:${QDRANT_REST_PORT}" 
-      - "${QDRANT_GRPC_PORT}:${QDRANT_GRPC_PORT}" 
+      - "${QDRANT_REST_PORT}:6333" 
+      - "${QDRANT_GRPC_PORT}:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     environment:
