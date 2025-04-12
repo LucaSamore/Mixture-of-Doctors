@@ -41,8 +41,8 @@ if [ "$REMOVE_VOLUMES" = true ]; then
 fi
 
 # Check if swarm network still exists and remove if not in use
-echo -e "${YELLOW}Checking if mod-network (swarm scope) can be removed...${NC}"
-sleep 10  # Give Docker time to update network usage status
+echo -e "${YELLOW}Checking if mod-network (swarm scope) can be removed... (it could take a few seconds)${NC}"
+sleep 20  # Give Docker time to update network usage status
 
 if docker network ls --filter name=mod-network --filter scope=swarm -q | grep -q .; then
     # Check if any containers are still using it
