@@ -2,50 +2,8 @@
 
 set -e
 
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-# Function to deploy a service using Docker Swarm with environment variables substitution
-deploy_service() {
-    local service_name=$1
-    local service_dir=$2
-    local image_name=$3  # Optional parameter for building image first
-    
-    echo -e "${YELLOW}Deploying ${service_name} Stack...${NC}"
-    cd ${service_dir}
-    
-    # Build image if specified
-    if [ ! -z "$image_name" ]; then
-        echo -e "${YELLOW}Building ${service_name} image...${NC}"
-        docker build -t ${image_name} .
-    fi
-    
-    # Load environment variables if .env exists
-    if [ -f ".env" ]; then
-        echo -e "${GREEN}Loading environment variables from .env file${NC}"
-        set -a  # automatically export all variables
-        source .env
-        set +a
-    fi
-    
-    # Use a temporary file to avoid pipe issues
-    echo -e "${GREEN}Processing docker-compose.yml with environment variables${NC}"
-    envsubst < docker-compose.yml > docker-compose-processed.yml
-    
-    # Check if processing was successful
-    if [ -s "docker-compose-processed.yml" ]; then
-        echo -e "${GREEN}Deploying ${service_name} stack with processed configuration${NC}"
-        docker stack deploy -c docker-compose-processed.yml ${service_name}
-        rm docker-compose-processed.yml  # Clean up temporary file
-    else
-        echo -e "${RED}Error: Environment variable substitution failed${NC}"
-        exit 1
-    fi
-    cd - > /dev/null
-}
+# Include utility functions
+source ./scripts/deploy_utils.sh
 
 echo -e "${YELLOW}=== Deploying All Services Using Docker Swarm ===${NC}"
 
@@ -160,68 +118,14 @@ deploy_service "kafka" "." ""
 cd ../..
 
 # Wait for Kafka to be ready
-echo -e "${YELLOW}Waiting for Kafka to become ready...${NC}"
-MAX_ATTEMPTS=30
-ATTEMPT=0
-
-while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-    if docker service ls --filter "name=kafka_kafka" --format "{{.Replicas}}" | grep -q "[1-9]/[1-9]"; then
-        echo -e "${GREEN}Kafka service is running!${NC}"
-        sleep 10  # Give it a bit more time to be fully operational
-        break
-    fi
-    
-    ATTEMPT=$((ATTEMPT+1))
-    echo -e "${YELLOW}Waiting for Kafka to start... ($ATTEMPT/$MAX_ATTEMPTS)${NC}"
-    sleep 5
-    
-    if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-        echo -e "${RED}Timeout waiting for Kafka. Check logs with 'docker service logs kafka_kafka'${NC}"
-        exit 1
-    fi
-done
+wait_for_service "kafka_kafka" 30 5 10
 
 # Deploy Redis with Docker Swarm
 deploy_service "redis" "infrastructure/redis" ""
 
-# Wait for Redis to be ready
-echo -e "${YELLOW}Waiting for Redis to become ready...${NC}"
-ATTEMPT=0
-
-while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-    if docker service ls --filter "name=redis_redis" --format "{{.Replicas}}" | grep -q "[1-9]/[1-9]"; then
-        echo -e "${GREEN}Redis service is running!${NC}"
-        sleep 5  # Give it a bit more time to be fully operational
-        break
-    fi
-    
-    ATTEMPT=$((ATTEMPT+1))
-    echo -e "${YELLOW}Waiting for Redis to start... ($ATTEMPT/$MAX_ATTEMPTS)${NC}"
-    sleep 5
-    
-    if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-        echo -e "${RED}Timeout waiting for Redis. Check logs with 'docker service logs redis_redis'${NC}"
-        exit 1
-    fi
-done
-
-echo -e "${YELLOW}Waiting for Redis Insight to become ready...${NC}"
-ATTEMPT=0
-
-while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-    if docker service ls --filter "name=redis_redis-insight" --format "{{.Replicas}}" | grep -q "[1-9]/[1-9]"; then
-        echo -e "${GREEN}Redis Insight service is running!${NC}"
-        break
-    fi
-    
-    ATTEMPT=$((ATTEMPT+1))
-    echo -e "${YELLOW}Waiting for Redis Insight to start... ($ATTEMPT/$MAX_ATTEMPTS)${NC}"
-    sleep 5
-    
-    if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-        echo -e "${RED}Timeout waiting for Redis Insight. Check logs with 'docker service logs redis_redis-insight'${NC}"
-    fi
-done
+# Wait for Redis and Redis Insight to be ready
+wait_for_service "redis_redis" 30 5 5
+wait_for_service "redis_redis-insight" 30 5 0
 
 echo -e "Creating Redis database in Redis Insight...${NC}"
 
