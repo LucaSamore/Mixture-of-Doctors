@@ -31,6 +31,7 @@ services:
         condition: any
     depends_on:
       - redis
+    user: root
 
 networks:
   default:
