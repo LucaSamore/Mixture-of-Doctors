@@ -100,6 +100,14 @@ sleep 20
 # Deploy Orchestrator with Docker Swarm
 deploy_service "orchestrator" "orchestrator" "mod/orchestrator:latest"
 
+# Deploy RAG modules for each domain
+echo -e "${YELLOW}=== Deploying RAG modules for each domain ===${NC}"
+# Copy config.json to rag-module directory if needed
+cp config.json rag-module/config.json 2>/dev/null || echo "Config already exists in rag-module directory"
+# Deploy RAG services using the utility function
+deploy_rag_services "rag-module"
+echo -e "${GREEN}RAG modules deployment completed.${NC}"
+
 # Check deployment status of all services
 echo -e "${YELLOW}Checking deployment status of all stacks...${NC}"
 sleep 5
@@ -114,6 +122,7 @@ echo -e "Chat History API: http://localhost:8000"
 echo -e "Redis UI: http://localhost:5540"
 echo -e "Orchestrator: http://localhost:8082/docs"
 echo -e "Kafka UI: http://localhost:8080"
+echo -e "Qdrant Dashboards: Check above for domain-specific URLs (default: http://localhost:6333/dashboard)"
 
 # Show current CLI .env content
 echo -e "${YELLOW}Current CLI .env configuration:${NC}"

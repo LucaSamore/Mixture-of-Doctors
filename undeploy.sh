@@ -6,6 +6,9 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Import utility functions
+source scripts/deploy_utils.sh
+
 # Parse command line arguments
 REMOVE_VOLUMES=false
 if [ "$1" == "--volumes" ] || [ "$1" == "-v" ]; then
@@ -15,29 +18,18 @@ fi
 
 echo -e "${YELLOW}=== Undeploying all Docker Swarm stacks ===${NC}"
 
-# Function to remove a stack and wait for it to be fully removed
-remove_stack() {
-    local stack_name=$1
-    
-    if docker stack ls | grep -q "^$stack_name "; then
-        echo -e "${YELLOW}Removing $stack_name stack...${NC}"
-        docker stack rm $stack_name
-        
-        # Wait for all services to be removed
-        echo -e "${YELLOW}Waiting for $stack_name services to be completely removed...${NC}"
-        while docker service ls --filter name=$stack_name -q | grep -q .; do
-            echo -n "."
-            sleep 2
-        done
-        echo -e "\n${GREEN}All $stack_name services removed${NC}"
-    else
-        echo -e "${YELLOW}Stack $stack_name not found, skipping...${NC}"
-    fi
-}
-
 # Remove all stacks in reverse order of deployment
 remove_stack "orchestrator"
 remove_stack "chat-history" 
+
+# Remove all RAG module stacks
+echo -e "${YELLOW}Removing all RAG module stacks...${NC}"
+# Extract available domains from config.json to find all RAG module stacks
+DOMAINS=$(grep -o '"[^"]*"' "config.json" | grep -v "rag_modules" | tr -d '"' | grep -v '[{}]')
+for domain in $DOMAINS; do
+    remove_stack "rag-$domain"
+done
+
 remove_stack "redis"
 remove_stack "kafka"
 

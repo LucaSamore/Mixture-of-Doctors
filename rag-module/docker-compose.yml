@@ -1,40 +1,31 @@
 services:
-  # Generic RAG service that will be scaled with different environment variables
   rag:
+    image: mixture-of-doctors/rag-module:latest
     build:
       context: .
       dockerfile: Dockerfile
     environment:
       - PORT=${RAG_SERVICE_PORT}
-      # RAG_DOMAIN will be overridden at runtime
       - RAG_DOMAIN=${RAG_DOMAIN:-${RAG_DEFAULT_DOMAIN}}
-      # Add Qdrant connection details
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      # Add Kafka connection details
-      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092}
-      - KAFKA_CONSUMER_TOPIC=${KAFKA_CONSUMER_TOPIC:-consumer_topic}
-      - KAFKA_PRODUCER_TOPIC=${KAFKA_PRODUCER_TOPIC:-producer_topic}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - QDRANT_HOST=${QDRANT_HOST}
+      - QDRANT_PORT=${QDRANT_PORT}
+      - KAFKA_BROKER=${KAFKA_BROKER}
+      - KAFKA_CONSUMER_TOPIC=${KAFKA_CONSUMER_TOPIC}
+      - KAFKA_PRODUCER_TOPIC=${KAFKA_PRODUCER_TOPIC}
     volumes:
       - ../config.json:/app/config.json
-    networks:
-      - rag-network
     depends_on:
       - qdrant
     deploy:
-      # Allows starting multiple instances of the same service
       replicas: 1
-
-  # Qdrant vector database service
   qdrant:
     image: qdrant/qdrant:latest
     ports:
-      - "${QDRANT_REST_PORT}:6333"  # REST API
-      - "${QDRANT_GRPC_PORT}:6334"  # gRPC API
+      - "${QDRANT_REST_PORT}:${QDRANT_REST_PORT}" 
+      - "${QDRANT_GRPC_PORT}:${QDRANT_GRPC_PORT}" 
     volumes:
       - qdrant_data:/qdrant/storage
-    networks:
-      - rag-network
     environment:
       - QDRANT_ALLOW_ANONYMOUS_READ=true
 
@@ -43,5 +34,6 @@ volumes:
     driver: local
 
 networks:
-  rag-network:
-    driver: bridge
+  default:
+    name: mod-network
+    external: true
