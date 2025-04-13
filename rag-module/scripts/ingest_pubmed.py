@@ -8,10 +8,15 @@ from qdrant_client.http import models
 import uuid
 import json
 import re
+import time
+import sys
+from requests.exceptions import ConnectionError, Timeout
 
 # Optimized for all-MiniLM-L6-v2
 CHUNK_SIZE = 384  # Optimal for this model
 OVERLAP = 1  # Number of sentences to overlap
+MAX_RETRIES = 3
+RETRY_DELAY = 5  # seconds
 
 
 def parse_arguments():
@@ -209,6 +214,43 @@ def chunk_text(text, target_chunk_size=CHUNK_SIZE, sentence_overlap=OVERLAP):
     return chunks
 
 
+def check_qdrant_server(host, port, retries=MAX_RETRIES, delay=RETRY_DELAY):
+    url = f"http://{host}:{port}/collections"
+
+    for attempt in range(retries):
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                return True
+            print(
+                f"Attempt {attempt + 1}/{retries}: Qdrant server returned status code {response.status_code}"
+            )
+        except (ConnectionError, Timeout) as e:
+            print(
+                f"Attempt {attempt + 1}/{retries}: Cannot connect to Qdrant at {host}:{port}: {e}"
+            )
+
+        if attempt < retries - 1:
+            print(f"Waiting {delay} seconds before retry...")
+            time.sleep(delay)
+
+    return False
+
+
+def with_retries(func, *args, retries=MAX_RETRIES, delay=RETRY_DELAY, **kwargs):
+    for attempt in range(retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            print(f"Attempt {attempt + 1}/{retries} failed: {e}")
+            if attempt < retries - 1:
+                print(f"Waiting {delay} seconds before retry...")
+                time.sleep(delay)
+
+    # If we get here, all attempts failed
+    raise Exception
+
+
 def main():
     args = parse_arguments()
 
@@ -217,8 +259,22 @@ def main():
 
     print(f"Connecting to Qdrant at {args.host}:{args.port} for domain '{args.domain}'")
 
-    # Initialize Qdrant client
-    client = QdrantClient(host=args.host, port=args.port)
+    # Check if Qdrant server is available
+    if not check_qdrant_server(args.host, args.port):
+        print(
+            f"ERROR: Could not connect to Qdrant server at {args.host}:{args.port} after {MAX_RETRIES} attempts."
+        )
+        print("Please check that the server is running and the port is correct.")
+        print(f"For the '{args.domain}' domain, the expected port is {args.port}.")
+        sys.exit(1)
+
+    # Initialize Qdrant client with timeout and connection settings
+    client = QdrantClient(
+        host=args.host,
+        port=args.port,
+        timeout=30,  # Longer timeout for operations
+        prefer_grpc=False,  # Use REST API which is more stable for some operations
+    )
 
     # Initialize embedding model
     print("Loading embedding model...")
@@ -234,20 +290,26 @@ def main():
     print(f"Ensuring collection '{collection_name}' exists...")
 
     try:
-        collections = client.get_collections().collections
+        # Use the retry wrapper for potentially failing operations
+        def get_collections():
+            return client.get_collections().collections
+
+        collections = with_retries(get_collections)
         collection_exists = any(col.name == collection_name for col in collections)
 
         if not collection_exists:
             print(f"Creating new collection: {collection_name}")
-            client.create_collection(
+            with_retries(
+                client.create_collection,
                 collection_name=collection_name,
                 vectors_config=models.VectorParams(
                     size=vector_size, distance=models.Distance.COSINE
                 ),
             )
+            print(f"Collection '{collection_name}' created successfully!")
     except Exception as e:
-        print(f"Error creating collection: {e}")
-        return
+        print(f"Error with Qdrant collection management: {e}")
+        sys.exit(1)
 
     # Fetch articles
     articles = fetch_articles(args.query, args.count)
@@ -263,29 +325,39 @@ def main():
         print(f"Article {article['id']} divided into {chunk_count} chunks")
 
         for i, chunk in enumerate(chunks):
-            # Create embedding for each chunk
-            embedding = model.encode(chunk)
+            try:
+                # Create embedding for each chunk
+                embedding = model.encode(chunk)
 
-            # Create metadata
-            metadata = {
-                "title": article["title"],
-                "source": article["source"],
-                "domain": args.domain,
-                "query": args.query,
-                "chunk_index": i,
-                "total_chunks": chunk_count,
-                "text_preview": chunk[:200] + "..." if len(chunk) > 200 else chunk,
-                "token_estimate": estimate_token_count(chunk),
-            }
+                # Create metadata
+                metadata = {
+                    "title": article["title"],
+                    "source": article["source"],
+                    "domain": args.domain,
+                    "query": args.query,
+                    "chunk_index": i,
+                    "total_chunks": chunk_count,
+                    "text_preview": chunk[:200] + "..." if len(chunk) > 200 else chunk,
+                    "token_estimate": estimate_token_count(chunk),
+                }
 
-            # Create point
-            point_id = str(uuid.uuid4())
-            point = models.PointStruct(
-                id=point_id, vector=embedding.tolist(), payload=metadata
-            )
+                # Create point
+                point_id = str(uuid.uuid4())
+                point = models.PointStruct(
+                    id=point_id, vector=embedding.tolist(), payload=metadata
+                )
 
-            # Upload point
-            client.upsert(collection_name=collection_name, points=[point])
+                # Upload point with retries
+                with_retries(
+                    client.upsert, collection_name=collection_name, points=[point]
+                )
+
+                # Print progress for large chunks
+                if chunk_count > 10 and (i + 1) % 5 == 0:
+                    print(f"Progress: {i + 1}/{chunk_count} chunks processed")
+
+            except Exception as e:
+                print(f"Error processing chunk {i} of article {article['id']}: {e}")
 
     print(
         f"Ingestion complete! Added {len(articles)} articles ({total_chunks} chunks) to {collection_name}"

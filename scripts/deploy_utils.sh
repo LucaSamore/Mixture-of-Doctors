@@ -147,7 +147,7 @@ remove_stack() {
     local stack_name=$1
     
     if docker stack ls | grep -q "^$stack_name "; then
-        echo -e "${YELLOW}Removing $stack_name stack...${NC}"
+        echo -e "${YELLOW}\nRemoving $stack_name stack...${NC}"
         docker stack rm $stack_name
         
         # Wait for all services to be removed
@@ -156,7 +156,7 @@ remove_stack() {
             echo -n "."
             sleep 2
         done
-        echo -e "\n${GREEN}All $stack_name services removed${NC}"
+        echo -e "${GREEN}All $stack_name services removed${NC}"
     else
         echo -e "${YELLOW}Stack $stack_name not found, skipping...${NC}"
     fi

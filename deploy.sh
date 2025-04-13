@@ -5,6 +5,13 @@ set -e
 # Include utility functions
 source ./scripts/deploy_utils.sh
 
+# Check if first argument is "ingest" to run ingestion after deployment
+RUN_INGESTION=false
+if [ "$1" = "ingest" ]; then
+    RUN_INGESTION=true
+    echo -e "${YELLOW}=== Will run data ingestion after deployment ===${NC}"
+fi
+
 echo -e "${YELLOW}=== Deploying All Services Using Docker Swarm ===${NC}"
 
 # Check if Docker is installed
@@ -130,6 +137,16 @@ cat frontend/cli/src/cli/.env 2>/dev/null || echo "No .env file found for CLI"
 
 echo
 echo -e "${YELLOW}Make sure the above configuration is correct for your environment.${NC}"
+
+# Run ingestion if requested
+if [ "$RUN_INGESTION" = true ]; then
+    echo -e "${YELLOW}=== Running data ingestion as requested ===${NC}"
+    ./scripts/ingest_rag_data.sh
+    echo -e "${GREEN}Data ingestion completed.${NC}"
+else
+    echo -e "${YELLOW}Skipping data ingestion. To run ingestion, execute deploy.sh with 'ingest' argument:${NC}"
+    echo -e "${YELLOW}    ./deploy.sh ingest${NC}"
+fi
 
 echo -e "${GREEN}Deployment script finished.${NC}"
 echo -e "${YELLOW}To stop all services run: ${NC}./undeploy.sh"
