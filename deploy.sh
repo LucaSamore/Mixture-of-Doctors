@@ -115,29 +115,6 @@ cp config.json rag-module/config.json 2>/dev/null || echo "Config already exists
 deploy_rag_services "rag-module"
 echo -e "${GREEN}RAG modules deployment completed.${NC}"
 
-# Check deployment status of all services
-echo -e "${YELLOW}Checking deployment status of all stacks...${NC}"
-sleep 5
-echo -e "${YELLOW}=== Services Status ===${NC}"
-docker stack ls
-echo -e "${YELLOW}=== Detailed Services Status ===${NC}"
-docker service ls
-
-echo -e "${GREEN}All services deployed successfully!${NC}"
-echo -e "${GREEN}=== Access Information ===${NC}"
-echo -e "Chat History API: http://localhost:8000"
-echo -e "Redis UI: http://localhost:5540"
-echo -e "Orchestrator: http://localhost:8082/docs"
-echo -e "Kafka UI: http://localhost:8080"
-echo -e "Qdrant Dashboards: Check above for domain-specific URLs (default: http://localhost:6333/dashboard)"
-
-# Show current CLI .env content
-echo -e "${YELLOW}Current CLI .env configuration:${NC}"
-cat frontend/cli/src/cli/.env 2>/dev/null || echo "No .env file found for CLI"
-
-echo
-echo -e "${YELLOW}Make sure the above configuration is correct for your environment.${NC}"
-
 # Run ingestion if requested
 if [ "$RUN_INGESTION" = true ]; then
     echo -e "${YELLOW}=== Running data ingestion as requested ===${NC}"
@@ -157,3 +134,30 @@ echo -e "${YELLOW}To view logs for a service: ${NC}docker service logs <service_
 if command -v uv &> /dev/null; then
     uv run frontend/cli/src/cli/client.py mod --help
 fi
+
+# Check deployment status of all services
+echo -e "${YELLOW}Checking deployment status of all stacks...${NC}"
+sleep 5
+echo -e "${YELLOW}=== Services Status ===${NC}"
+docker stack ls
+echo -e "${YELLOW}=== Detailed Services Status ===${NC}"
+docker service ls
+
+echo -e "${GREEN}All services deployed successfully!${NC}"
+echo -e "${GREEN}=== Access Information ===${NC}"
+echo -e "Kafka UI: http://localhost:8080"
+echo -e "MongoDB UI: http://localhost:8081"
+echo -e "Orchestrator: http://localhost:8082/docs"
+echo -e "Chat History API: http://localhost:8089"
+echo -e "Redis UI: http://localhost:5540"
+echo -e "Qdrant Dashboards:"
+echo -e "http://localhost:6333/dashboard"
+echo -e "http://localhost:6343/dashboard"
+echo -e "http://localhost:6353/dashboard"
+
+# Show current CLI .env content
+echo -e "${YELLOW}Current CLI .env configuration:${NC}"
+cat frontend/cli/src/cli/.env 2>/dev/null || echo "No .env file found for CLI"
+
+echo
+echo -e "${YELLOW}Make sure the above configuration is correct for your environment.${NC}"
