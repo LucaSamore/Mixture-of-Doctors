@@ -1,0 +1,39 @@
+services:
+  rag:
+    image: mixture-of-doctors/rag-module:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - PORT=${RAG_SERVICE_PORT}
+      - RAG_DOMAIN=${RAG_DOMAIN:-${RAG_DEFAULT_DOMAIN}}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - QDRANT_HOST=${QDRANT_HOST}
+      - QDRANT_PORT=${QDRANT_PORT}
+      - KAFKA_BROKER=${KAFKA_BROKER}
+      - KAFKA_CONSUMER_TOPIC=${KAFKA_CONSUMER_TOPIC}
+      - KAFKA_PRODUCER_TOPIC=${KAFKA_PRODUCER_TOPIC}
+    volumes:
+      - ../config.json:/app/config.json
+    depends_on:
+      - qdrant
+    deploy:
+      replicas: 1
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "${QDRANT_REST_PORT}:6333" 
+      - "${QDRANT_GRPC_PORT}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT_ALLOW_ANONYMOUS_READ=true
+
+volumes:
+  qdrant_data:
+    driver: local
+
+networks:
+  default:
+    name: mod-network
+    external: true

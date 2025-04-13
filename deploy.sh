@@ -5,6 +5,13 @@ set -e
 # Include utility functions
 source ./scripts/deploy_utils.sh
 
+# Check if first argument is "ingest" to run ingestion after deployment
+RUN_INGESTION=false
+if [ "$1" = "ingest" ]; then
+    RUN_INGESTION=true
+    echo -e "${YELLOW}=== Will run data ingestion after deployment ===${NC}"
+fi
+
 echo -e "${YELLOW}=== Deploying All Services Using Docker Swarm ===${NC}"
 
 # Check if Docker is installed
@@ -100,6 +107,14 @@ sleep 20
 # Deploy Orchestrator with Docker Swarm
 deploy_service "orchestrator" "orchestrator" "mod/orchestrator:latest"
 
+# Deploy RAG modules for each domain
+echo -e "${YELLOW}=== Deploying RAG modules for each domain ===${NC}"
+# Copy config.json to rag-module directory if needed
+cp config.json rag-module/config.json 2>/dev/null || echo "Config already exists in rag-module directory"
+# Deploy RAG services using the utility function
+deploy_rag_services "rag-module"
+echo -e "${GREEN}RAG modules deployment completed.${NC}"
+
 # Check deployment status of all services
 echo -e "${YELLOW}Checking deployment status of all stacks...${NC}"
 sleep 5
@@ -114,6 +129,7 @@ echo -e "Chat History API: http://localhost:8000"
 echo -e "Redis UI: http://localhost:5540"
 echo -e "Orchestrator: http://localhost:8082/docs"
 echo -e "Kafka UI: http://localhost:8080"
+echo -e "Qdrant Dashboards: Check above for domain-specific URLs (default: http://localhost:6333/dashboard)"
 
 # Show current CLI .env content
 echo -e "${YELLOW}Current CLI .env configuration:${NC}"
@@ -121,6 +137,16 @@ cat frontend/cli/src/cli/.env 2>/dev/null || echo "No .env file found for CLI"
 
 echo
 echo -e "${YELLOW}Make sure the above configuration is correct for your environment.${NC}"
+
+# Run ingestion if requested
+if [ "$RUN_INGESTION" = true ]; then
+    echo -e "${YELLOW}=== Running data ingestion as requested ===${NC}"
+    ./scripts/ingest_rag_data.sh
+    echo -e "${GREEN}Data ingestion completed.${NC}"
+else
+    echo -e "${YELLOW}Skipping data ingestion. To run ingestion, execute deploy.sh with 'ingest' argument:${NC}"
+    echo -e "${YELLOW}    ./deploy.sh ingest${NC}"
+fi
 
 echo -e "${GREEN}Deployment script finished.${NC}"
 echo -e "${YELLOW}To stop all services run: ${NC}./undeploy.sh"
