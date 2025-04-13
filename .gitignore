@@ -18,3 +18,5 @@ init-scripts/
 .env
 
 *.log
+
+scripts/setup_envs.sh
