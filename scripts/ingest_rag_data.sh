@@ -77,35 +77,6 @@ done
 
 echo -e "${GREEN}All RAG services checked. Proceeding with ingestion...${NC}"
 
-# Delete points from Qdrant collections if they exist
-domain_index=0
-for domain in $DOMAINS; do
-    echo -e "${YELLOW}Processing domain: $domain${NC}"
-    QDRANT_REST_PORT=$((BASE_REST_PORT + (domain_index * 10)))
-    
-    # First check if the collection exists
-    COLLECTION_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$QDRANT_REST_PORT/collections/${domain}_docs")
-    
-    if [ "$COLLECTION_STATUS" = "200" ]; then
-        echo -e "${YELLOW}Deleting all points in the Qdrant collection for domain: $domain${NC}"
-        DELETE_RESPONSE=$(curl -s -X POST "http://localhost:$QDRANT_REST_PORT/collections/${domain}_docs/points/delete" \
-            -H "Content-Type: application/json" \
-            -d '{"filter": {}}')
-            
-        if echo "$DELETE_RESPONSE" | grep -q "error"; then
-            echo -e "${RED}Warning: Issue deleting points for domain $domain: $DELETE_RESPONSE${NC}"
-            # Continue anyway, don't exit
-        else
-            echo -e "${GREEN}All points deleted for domain: $domain${NC}"
-        fi
-    else
-        echo -e "${YELLOW}Collection ${domain}_docs does not exist yet, no need to delete points${NC}"
-    fi
-
-    # Increment domain index for the next domain
-    domain_index=$((domain_index + 1))
-done
-
 # Install dependencies for ingestion script
 echo -e "${GREEN}Installing required dependencies for ingestion...${NC}"
 cd "$RAG_MODULE_DIR/scripts/"
