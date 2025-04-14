@@ -109,8 +109,6 @@ deploy_service "orchestrator" "orchestrator" "mod/orchestrator:latest"
 
 # Deploy RAG modules for each domain
 echo -e "${YELLOW}=== Deploying RAG modules for each domain ===${NC}"
-# Copy config.json to rag-module directory if needed
-cp config.json rag-module/config.json 2>/dev/null || echo "Config already exists in rag-module directory"
 # Deploy RAG services using the utility function
 deploy_rag_services "rag-module"
 echo -e "${GREEN}RAG modules deployment completed.${NC}"

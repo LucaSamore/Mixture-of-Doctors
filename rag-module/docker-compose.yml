@@ -1,9 +1,6 @@
 services:
   rag:
     image: mixture-of-doctors/rag-module:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
     environment:
       - PORT=${RAG_SERVICE_PORT}
       - RAG_DOMAIN=${RAG_DOMAIN:-${RAG_DEFAULT_DOMAIN}}
@@ -11,10 +8,9 @@ services:
       - QDRANT_HOST=${QDRANT_HOST}
       - QDRANT_PORT=${QDRANT_PORT}
       - KAFKA_BROKER=${KAFKA_BROKER}
-      - KAFKA_CONSUMER_TOPIC=${KAFKA_CONSUMER_TOPIC}
       - KAFKA_PRODUCER_TOPIC=${KAFKA_PRODUCER_TOPIC}
     volumes:
-      - ../config.json:/app/config.json
+      - ../../config.json:/app/config.json
     depends_on:
       - qdrant
     deploy:
