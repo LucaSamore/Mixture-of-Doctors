@@ -1,14 +1,17 @@
 from loguru import logger
 from pydantic import BaseModel
-from typing import Dict
-from .utilities import llm_groq, consumer, prepare_prompt, redis_client
+from typing import Dict, Set
+from .utilities import LLMClient, KafkaClient, RedisClient, prepare_prompt
 import asyncio
 import os
 
-active_queries: Dict[str, Dict] = {}
-consumer_task = None
-PROMPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SCRIPT = os.path.join(PROMPT_DIR, "./prompt/synth_prompt.md")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SYNTHESIS_PROMPT_PATH = os.path.join(BASE_DIR, "prompt/synth_prompt.md")
+
+
+kafka = KafkaClient()
+redis = RedisClient()
+llm = LLMClient()
 
 
 class RagResponse(BaseModel):
@@ -21,96 +24,102 @@ class RagResponse(BaseModel):
     total: int
 
 
+class QueryData(BaseModel):
+    user_id: str
+    original_query: str
+    responses: Dict[str, str] = {}
+    received_numbers: Set[int] = set()
+    total: int
+    stream: bool
+
+
+# [user_id, query_data]
+active_queries: Dict[str, QueryData] = {}
+
+
 async def start_consumer():
-    global consumer_task
-    consumer_task = asyncio.create_task(run_reader())
+    asyncio.create_task(run_reader())
     logger.info("Consumer started")
 
 
 async def run_reader():
+    consumer = kafka.get_consumer()
+
     try:
-        logger.info("Starting Kafka message polling...")
         while True:
-            for msg in consumer:
-                logger.info(f"Received message: {msg.value}")
-                response = RagResponse(**msg.value)
+            for message in consumer:
+                logger.info(f"Received message: {message.value}")
+                response = RagResponse(**message.value)
                 await handle_response(response)
     except Exception as e:
-        consumer.close()
         logger.error(f"Consumer error: {e}")
     finally:
-        consumer.close()
-        logger.info("Consumer stopped")
+        kafka.close()
+        logger.info("Response processor stopped")
 
 
 async def handle_response(response: RagResponse):
     user_id = response.user_id
 
+    # Inizializza i dati della query se è la prima risposta
     if user_id not in active_queries:
-        active_queries[user_id] = {
-            "user_id": user_id,
-            "original_query": response.original_query,
-            "responses": {},
-            "received_numbers": set(),
-            "total": response.total,
-            "stream": response.stream,
-        }
-    query_data = active_queries[user_id]
-    query_data["responses"][response.disease] = response.response
-    query_data["received_numbers"].add(response.number)
+        active_queries[user_id] = QueryData(
+            user_id=user_id,
+            original_query=response.original_query,
+            total=response.total,
+            stream=response.stream,
+        )
 
-    if not _is_query_complete(user_id, query_data):
+    # Aggiorna i dati della query con la nuova risposta
+    query_data = active_queries[user_id]
+    query_data.responses[response.disease] = response.response
+    query_data.received_numbers.add(response.number)
+
+    if not is_query_complete(query_data):
         return
 
-    logger.info(f"All {query_data['total']} sub-queries received for user {user_id}")
+    logger.info(f"All {query_data.total} responses received for user {user_id}")
 
-    _commit_query(user_id)
-    await synthesize_response(query_data)
+    kafka.commit()
+
+    await synthesize_and_send_response(query_data)
+
     del active_queries[user_id]
 
 
-def _is_query_complete(user_id, query_data):
-    received_count = len(query_data["received_numbers"])
-    total_expected = query_data["total"]
+def is_query_complete(query_data: QueryData) -> bool:
+    received_count = len(query_data.received_numbers)
+    total_expected = query_data.total
 
     if received_count < total_expected:
         return False
 
     expected_numbers = set(range(1, total_expected + 1))
-    if query_data["received_numbers"] != expected_numbers:
+    if query_data.received_numbers != expected_numbers:
         logger.warning(
-            f"Missing responses for user {user_id}. "
-            f"Expected: {expected_numbers}, Got: {query_data['received_numbers']}"
+            f"Missing responses for user {query_data.user_id}. "
+            f"Expected: {expected_numbers}, Got: {query_data.received_numbers}"
         )
         return False
 
     return True
 
 
-def _commit_query(user_id):
+async def synthesize_and_send_response(query_data: QueryData):
     try:
-        consumer.commit()
-        logger.info(f"Successfully committed offsets for user {user_id}")
-    except Exception as e:
-        logger.error(f"Error committing offsets: {e}")
+        disease_responses = []
+        for disease, response in query_data.responses.items():
+            disease_responses.append(f"### {disease.upper()} | RESPONSE:\n{response}")
 
+        formatted_responses = "\n\n".join(disease_responses)
+        logger.info(f"Responses to synthesize: {formatted_responses}")
 
-async def synthesize_response(query_data: Dict):
-    try:
-        diseases_responses = []
-        for disease, response in query_data["responses"].items():
-            diseases_responses.append(f"### {disease.upper()} | RESPONSE:\n{response}")
-        responses = "\n\n".join(diseases_responses)
-
-        logger.info(f"Responses to synthesize: {responses}")
-        response = await generate_synthesis(
-            query_data["original_query"], responses, query_data["stream"]
+        synthesis_stream = await generate_synthesis(
+            query_data.original_query, formatted_responses, query_data.stream
         )
 
-        logger.info(f"Response generated: {response}")
-
-        await stream_to_redis(
-            query_data["user_id"], query_data["original_query"], response
+        await send_response(
+            query_data.user_id, query_data.original_query, synthesis_stream
         )
 
     except Exception as e:
@@ -120,27 +129,32 @@ async def synthesize_response(query_data: Dict):
 async def generate_synthesis(
     original_query: str, formatted_responses: str, stream: bool
 ):
-    params = {"original_query": original_query, "responses": formatted_responses}
-    prompt = prepare_prompt(template=SCRIPT, **params)
-    # response = llm.generate(model="llama3.3:latest", prompt=prompt, stream=stream)
-    response = llm_groq.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "system", "content": prompt}],
-        stream=stream,
+    prompt = prepare_prompt(
+        SYNTHESIS_PROMPT_PATH,
+        original_query=original_query,
+        responses=formatted_responses,
     )
-    logger.info(f"Response synthesized {response}")
+
+    response = await llm.generate(prompt, stream=stream)
+    logger.success("Response synthesis completed")
+
     return response
 
 
-async def stream_to_redis(user_id: str, query: str, response):
-    for chunk in response:
+async def send_response(user_id: str, query: str, response_stream):
+    """Invia la risposta sintetizzata all'utente tramite Redis."""
+    for chunk in response_stream:
         content = chunk.choices[0].delta.content
-        logger.info(content)
-        redis_client.xadd(
-            name=user_id,
-            fields={
-                "query": query,
-                "response": str(content),
-                "done": True if content == "" else False,
-            },
-        )
+        if content:
+            logger.success(f"Streaming chunk: {content}")
+
+            redis.stream_message(
+                stream_id=user_id,
+                fields={
+                    "query": query,
+                    "response": content,
+                    "done": str(
+                        True if chunk.choices[0].finish_reason == "stop" else False
+                    ),
+                },
+            )
