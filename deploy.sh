@@ -48,8 +48,6 @@ fi
 
 # Deploy Kafka with Docker Swarm
 cd infrastructure/kafka
-# Ensure config.json is available to the stack
-cp ../../config.json ./config.json
 deploy_service "kafka" "." ""
 cd ../..
 
