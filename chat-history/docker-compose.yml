@@ -97,20 +97,20 @@ services:
       bash -c "
         echo 'Waiting for MongoDB instances to start...'
         sleep 10
-        until mongo --host mongo1 --port ${MONGO1_PORT} --eval 'print(\"Mongo1 ready\")' > /dev/null 2>&1; do
+        until mongosh --host mongo1 --port ${MONGO1_PORT} --eval 'print(\"Mongo1 ready\")' > /dev/null 2>&1; do
           echo 'Waiting for mongo1...'
           sleep 2
         done
-        until mongo --host mongo2 --port ${MONGO2_PORT} --eval 'print(\"Mongo2 ready\")' > /dev/null 2>&1; do
+        until mongosh --host mongo2 --port ${MONGO2_PORT} --eval 'print(\"Mongo2 ready\")' > /dev/null 2>&1; do
           echo 'Waiting for mongo2...'
           sleep 2
         done
-        until mongo --host mongo3 --port ${MONGO3_PORT} --eval 'print(\"Mongo3 ready\")' > /dev/null 2>&1; do
+        until mongosh --host mongo3 --port ${MONGO3_PORT} --eval 'print(\"Mongo3 ready\")' > /dev/null 2>&1; do
           echo 'Waiting for mongo3...'
           sleep 2
         done
         echo 'Initializing replica set...'
-        mongo --host mongo1 --port ${MONGO1_PORT} --eval 'rs.status() || rs.initiate({_id:\"rs0\", members:[{_id:0,host:\"mongo1:${MONGO1_PORT}\",priority:1},{_id:1,host:\"mongo2:${MONGO2_PORT}\",priority:0.5},{_id:2,host:\"mongo3:${MONGO3_PORT}\",priority:0.5}]})'
+        mongosh --host mongo1 --port ${MONGO1_PORT} --eval 'rs.initiate({_id:\"rs0\", members:[{_id:0,host:\"mongo1:${MONGO1_PORT}\",priority:1},{_id:1,host:\"mongo2:${MONGO2_PORT}\",priority:0.5},{_id:2,host:\"mongo3:${MONGO3_PORT}\",priority:0.5}]})'
         echo 'Replica set initialized!'
       "
     deploy:
