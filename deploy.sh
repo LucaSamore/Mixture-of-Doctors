@@ -7,7 +7,7 @@ source ./scripts/deploy_utils.sh
 
 # Check if first argument is "ingest" to run ingestion after deployment
 RUN_INGESTION=false
-if [ "$1" = "ingest" ]; then
+if [ "$1" = "--ingest" ]; then
     RUN_INGESTION=true
     echo -e "${YELLOW}=== Will run data ingestion after deployment ===${NC}"
 fi
@@ -117,8 +117,7 @@ if [ "$RUN_INGESTION" = true ]; then
     ./scripts/ingest_rag_data.sh
     echo -e "${GREEN}Data ingestion completed.${NC}"
 else
-    echo -e "${YELLOW}Skipping data ingestion. To run ingestion, execute deploy.sh with 'ingest' argument:${NC}"
-    echo -e "${YELLOW}    ./deploy.sh ingest${NC}"
+    echo -e "${YELLOW}Skipping data ingestion. To run ingestion, use './deploy.sh --ingest'${NC}"
 fi
 
 echo -e "${GREEN}Deployment script finished.${NC}"

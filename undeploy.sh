@@ -11,10 +11,17 @@ source scripts/deploy_utils.sh
 
 # Parse command line arguments
 REMOVE_VOLUMES=false
-if [ "$1" == "--volumes" ] || [ "$1" == "-v" ]; then
+if [ "$1" == "--volumes" ] || [ "$1" == "-v" ] || [ "$2" == "--volumes" ] || [ "$2" == "-v" ] ; then
     REMOVE_VOLUMES=true
     echo -e "${YELLOW}WARNING: Will remove all volumes (data will be lost)${NC}"
 fi
+
+REMOVE_POINTS=false
+if [ "$1" == "--points" ] || [ "$1" == "-p" ] || [ "$2" == "--points" ] || [ "$2" == "-p" ]; then
+    REMOVE_POINTS=true
+    echo -e "${YELLOW}WARNING: Will remove all points on vector stores (data will be lost)${NC}"
+fi
+
 
 echo -e "${YELLOW}=== Undeploying all Docker Swarm stacks ===${NC}"
 
@@ -24,46 +31,47 @@ remove_stack "chat-history"
 remove_stack "redis"
 remove_stack "kafka"
 
-# Delete points from Qdrant collections if they exist
-# Extract available domains from config.json
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOMAINS=$(grep -o '"[^"]*"' "$ROOT_DIR/config.json" | grep -v "rag_modules" | tr -d '"' | grep -v '[{}]')
-BASE_REST_PORT=6333
+# If --points flag is used, delete points
+if [ "$REMOVE_POINTS" = true ]; then
+    echo -e "${YELLOW}\nDelete all points in each rag-module's vector store...${NC}"
 
-domain_index=0
-for domain in $DOMAINS; do
-    echo -e "${YELLOW}Processing domain: $domain${NC}"
-    QDRANT_REST_PORT=$((BASE_REST_PORT + (domain_index * 10)))
-    
-    # First check if the collection exists
-    COLLECTION_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$QDRANT_REST_PORT/collections/${domain}_docs")
-    
-    echo -e "collection status: ${COLLECTION_STATUS}"
-    echo -e "http://localhost:$QDRANT_REST_PORT/collections/${domain}_docs"
+    # Delete points from Qdrant collections if they exist
+    # Extract available domains from config.json
+    ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    DOMAINS=$(grep -o '"[^"]*"' "$ROOT_DIR/config.json" | grep -v "rag_modules" | tr -d '"' | grep -v '[{}]')
+    BASE_REST_PORT=6333
 
-    if [ "$COLLECTION_STATUS" = "200" ]; then
-        echo -e "${YELLOW}Deleting all points in the Qdrant collection for domain: $domain${NC}"
-        DELETE_RESPONSE=$(curl -s -X POST "http://localhost:$QDRANT_REST_PORT/collections/${domain}_docs/points/delete" \
-            -H "Content-Type: application/json" \
-            -d '{"filter": {}}')
-            
-        if echo "$DELETE_RESPONSE" | grep -q "error"; then
-            echo -e "${RED}Warning: Issue deleting points for domain $domain: $DELETE_RESPONSE${NC}"
-            # Continue anyway, don't exit
+    domain_index=0
+    for domain in $DOMAINS; do
+        echo -e "${YELLOW}\nProcessing domain: $domain${NC}"
+        QDRANT_REST_PORT=$((BASE_REST_PORT + (domain_index * 10)))
+        
+        # First check if the collection exists
+        COLLECTION_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$QDRANT_REST_PORT/collections/${domain}_docs")
+
+        if [ "$COLLECTION_STATUS" = "200" ]; then
+            echo -e "${YELLOW}Deleting all points in the Qdrant collection for domain: $domain${NC}"
+            DELETE_RESPONSE=$(curl -s -X POST "http://localhost:$QDRANT_REST_PORT/collections/${domain}_docs/points/delete" \
+                -H "Content-Type: application/json" \
+                -d '{"filter": {}}')
+                
+            if echo "$DELETE_RESPONSE" | grep -q "error"; then
+                echo -e "${RED}Warning: Issue deleting points for domain $domain: $DELETE_RESPONSE${NC}"
+                # Continue anyway, don't exit
+            else
+                echo -e "${GREEN}All points deleted for domain: $domain${NC}"
+            fi
         else
-            echo -e "${GREEN}All points deleted for domain: $domain${NC}"
+            echo -e "${YELLOW}Collection ${domain}_docs does not exist, no need to delete points${NC}"
         fi
-    else
-        echo -e "${YELLOW}Collection ${domain}_docs does not exist, no need to delete points${NC}"
-    fi
 
-    # Increment domain index for the next domain
-    domain_index=$((domain_index + 1))
-done
-
+        # Increment domain index for the next domain
+        domain_index=$((domain_index + 1))
+    done
+fi
 
 # Remove all RAG module stacks
-echo -e "${YELLOW}Removing all RAG module stacks...${NC}"
+echo -e "${YELLOW}\nRemoving all RAG module stacks...${NC}"
 # Extract available domains from config.json to find all RAG module stacks
 DOMAINS=$(grep -o '"[^"]*"' "config.json" | grep -v "rag_modules" | tr -d '"' | grep -v '[{}]')
 for domain in $DOMAINS; do
@@ -72,13 +80,13 @@ done
 
 # If --volumes flag is used, prune volumes
 if [ "$REMOVE_VOLUMES" = true ]; then
-    echo -e "${YELLOW}Pruning all unused volumes...${NC}"
+    echo -e "${YELLOW}\nPruning all unused volumes...${NC}"
     docker volume prune -f
     echo -e "${GREEN}Volumes pruned${NC}"
 fi
 
 # Check if swarm network still exists and remove if not in use
-echo -e "${YELLOW}Checking if mod-network (swarm scope) can be removed... (it could take a few seconds)${NC}"
+echo -e "${YELLOW}\nChecking if mod-network (swarm scope) can be removed... (it could take a few seconds)${NC}"
 sleep 20  # Give Docker time to update network usage status
 
 if docker network ls --filter name=mod-network --filter scope=swarm -q | grep -q .; then
@@ -100,4 +108,8 @@ echo -e "${GREEN}=== All stacks undeployed successfully! ===${NC}"
 
 if [ "$REMOVE_VOLUMES" != true ]; then
     echo -e "${YELLOW}Note: Volumes were preserved. Use './undeploy.sh --volumes' to remove all data.${NC}"
+fi
+
+if [ "$REMOVE_VOLUMES" != true ]; then
+    echo -e "${YELLOW}Note: Vectore store's points were preserved. Use './undeploy.sh --points' to remove all data.${NC}"
 fi

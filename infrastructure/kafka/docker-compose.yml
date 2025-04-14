@@ -41,9 +41,7 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
+        condition: none
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
