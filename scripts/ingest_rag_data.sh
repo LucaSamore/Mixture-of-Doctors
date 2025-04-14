@@ -77,17 +77,33 @@ done
 
 echo -e "${GREEN}All RAG services checked. Proceeding with ingestion...${NC}"
 
-# Install dependencies for ingestion script
-echo -e "${GREEN}Installing required dependencies for ingestion...${NC}"
-cd "$RAG_MODULE_DIR/scripts/"
-pip install -r requirements.txt
+# Build Docker image for ingestion if it doesn't exist or if forcing rebuild
+echo -e "${GREEN}Building Docker image for ingestion...${NC}"
+cd "$RAG_MODULE_DIR"
+docker build -f ingestion/Dockerfile -t mixture-of-doctors/rag-ingest:latest ..
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Failed to build the Docker image for ingestion. Exiting.${NC}"
+    exit 1
+fi
 
 # Run ingestion for each domain
 domain_index=0
 for domain in $DOMAINS; do
     echo -e "${GREEN}Running ingestion for domain: $domain${NC}"
     QDRANT_REST_PORT=$((BASE_REST_PORT + (domain_index * 10)))
-    python ingest_pubmed.py --domain $domain --query "$domain disease" --count 10 --port $QDRANT_REST_PORT
+    
+    # Get the service name for this domain's Qdrant service
+    stack_name="rag-$domain"
+    qdrant_service="${stack_name}_qdrant"
+    
+    # Run the ingestion docker container
+    echo -e "${YELLOW}Running Docker container for ingestion of domain: $domain${NC}"
+    docker run --rm --network mod-network \
+        -e QDRANT_HOST="${qdrant_service}" \
+        -e QDRANT_PORT="6333" \
+        mixture-of-doctors/rag-ingest:latest \
+        --domain "$domain" --query "$domain disease" --count 10 --host "${qdrant_service}" --port 6333
     
     if [ $? -ne 0 ]; then
         echo -e "${RED}Warning: Issue running ingestion for domain $domain${NC}"

@@ -62,7 +62,7 @@ echo "Check above for the specific Qdrant dashboard URLs for each domain"
 
 # Install dependencies for ingestion script
 echo "Installing required dependencies for ingestion..."
-cd "$RAG_MODULE_DIR/scripts/"
+cd "$RAG_MODULE_DIR/ingestion/"
 pip install -r requirements.txt
 
 echo "Starting data ingestion for each domain..."
