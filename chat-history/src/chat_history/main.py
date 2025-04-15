@@ -11,7 +11,7 @@ logger.add("./logs/chat-history.log", rotation="10 MB")
 app = FastAPI(
     title="Chat History API",
     description="API to store and retrieve chat history",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 app.include_router(api.router, prefix="/requests")

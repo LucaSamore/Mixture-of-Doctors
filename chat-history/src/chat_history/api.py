@@ -10,7 +10,11 @@ router = APIRouter()
 
 
 @router.post("/", response_model=ConversationModel, status_code=200)
-async def add_conversation_item(username: str, conversation_item: Optional[ConversationItem] = None, db=Depends(get_database)):
+async def add_conversation_item(
+    username: str,
+    conversation_item: Optional[ConversationItem] = None,
+    db=Depends(get_database),
+):
     logger.info(f"Adding conversation item for user: {username}")
     service = ConversationService(db)
     result = await service.add_conversation_item(username, conversation_item)
@@ -37,9 +41,9 @@ async def delete_user_conversation(username: str, db=Depends(get_database)):
     logger.info(f"Deleting conversation for user: {username}")
     conversation_service = ConversationService(db)
     deleted = await conversation_service.delete_conversation_by_username(username)
-    
+
     if not deleted:
         logger.warning(f"Conversation not found for user: {username}")
         raise HTTPException(status_code=404, detail="Conversation not found")
-    
+
     logger.success(f"Successfully deleted conversation for user: {username}")

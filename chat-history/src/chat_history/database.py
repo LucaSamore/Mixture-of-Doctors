@@ -14,11 +14,11 @@ database = None
 
 async def get_database():
     global database
-    
+
     if database is None:
         logger.info("Database connection not initialized, connecting now")
         await connect_to_mongodb()
-        
+
     return database
 
 
@@ -26,11 +26,11 @@ async def connect_to_mongodb():
     global client, database
     logger.info(f"Connecting to MongoDB at {mongodb_url}")
     client = AsyncIOMotorClient(mongodb_url)
-    
+
     if database_name is None:
         logger.error("DATABASE_NAME environment variable is not set")
         raise ValueError("DATABASE_NAME environment variable is not set")
-    
+
     database = client[database_name]
 
     try:

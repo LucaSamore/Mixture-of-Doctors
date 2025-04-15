@@ -25,7 +25,7 @@ class ConversationModel(BaseModel):
                         "answer": "The API is a RESTful API that allows you to store and retrieve chat history data.",
                         "timestamp": datetime.now().isoformat(),
                     }
-                ]
+                ],
             }
         }
     }
