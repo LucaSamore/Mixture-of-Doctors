@@ -30,9 +30,8 @@ done
 
 echo "Kafka is ready! Creating topics..."
 
-# Create topic: orchestrator
 kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
-  --topic orchestrator \
+  --topic diabetes \
   --partitions 3 \
   --replication-factor 1
 
