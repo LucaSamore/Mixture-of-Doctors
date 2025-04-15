@@ -63,6 +63,8 @@ wait_for_service "redis_redis-insight" 30 5 0
 
 echo -e "Creating Redis database in Redis Insight...${NC}"
 
+sleep 15
+
 # API URL for RedisInsight
 API_URL="http://localhost:${REDIS_INSIGHT_PORT}/api"
     
@@ -74,9 +76,31 @@ if echo "$EXISTING_DBS" | grep -q "\"host\":\"${REDIS_HOST}\"" && \
    echo "$EXISTING_DBS" | grep -q "\"name\":\"${REDIS_NAME}\""; then
     echo -e "${GREEN}Redis database already exists. Skipping database creation.${NC}"
 else
+    echo -e "Accept agreements...${NC}"
+
+    SETTINGS_RESPONSE=$(curl -s -X PATCH "${API_URL}/settings" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"theme\": \"DARK\",
+            \"dateFormat\": \"yyyy-mm-dd\",
+            \"timezone\": \"local\",
+            \"scanThreshold\": 10000,
+            \"batchSize\": 5,
+            \"agreements\": {
+                \"eula\": true,
+                \"analytics\": false,
+                \"notifications\": false,
+                \"encryption\": false
+            },
+            \"analyticsReason\": \"none\"
+        }")
+
+    echo -e "${GREEN}Response: ${AGREEMENTS_RESPONSE}${NC}"    
+    
+    sleep 5
+
     echo -e "Adding Redis database...${NC}"
     
-    # Add the database
     ADD_RESPONSE=$(curl -s -X POST "${API_URL}/databases" \
         -H "Content-Type: application/json" \
         -d "{
@@ -84,12 +108,20 @@ else
             \"port\": ${REDIS_PORT},
             \"username\": \"${REDIS_USERNAME}\",
             \"password\": \"${REDIS_PASSWORD}\",
-            \"name\": \"${REDIS_NAME}\"
+            \"name\": \"${REDIS_NAME}\",
+            \"db\": 0,
+            \"tls\": false,
+            \"verifyServerCert\": false,
+            \"ssh\": false,
+            \"forceStandalone\": true,
+            \"compressor\": \"NONE\",
+            \"keyNameFormat\": \"Unicode\"
         }")
     
     # Check if the addition was successful
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Successfully added Redis database${NC}"
+        echo -e "${GREEN}Response: ${ADD_RESPONSE}${NC}"
     else
         echo -e "${RED}Error: Failed to add Redis database${NC}"
         echo -e "${RED}Response: ${ADD_RESPONSE}${NC}"
