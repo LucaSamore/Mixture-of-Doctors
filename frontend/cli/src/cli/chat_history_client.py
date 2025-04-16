@@ -26,16 +26,18 @@ class ChatHistoryClient:
         self.base_url = os.getenv("CHAT_HISTORY_API_URL", "http://localhost:8000")
 
     def create_or_update_chat(
-        self, username: str, question: str, answer: str
+        self, username: str, question: str | None, answer: str | None
     ) -> Optional[ConversationModel]:
         try:
-            conversation_item = ConversationItem(question=question, answer=answer)
-
-            response = requests.post(
-                f"{self.base_url}/requests/",
-                params={"username": username},
-                json=conversation_item.model_dump(mode="json"),
-            )
+            if question and answer:
+                conversation_item = ConversationItem(question=question, answer=answer)
+                response = requests.post(
+                    f"{self.base_url}/requests/",
+                    params={"username": username},
+                    json=conversation_item.model_dump(mode="json"),
+                )
+            else:
+                response = requests.post(f"{self.base_url}/requests/{username}")
 
             if response.status_code == 200:
                 return ConversationModel.model_validate(response.json())

@@ -2,6 +2,7 @@ import requests
 from redis import Redis, RedisError
 import time
 import os
+import random
 from typing import Any, Callable
 from pydantic import BaseModel
 from loguru import logger
@@ -29,6 +30,9 @@ class StreamClient:
         self.redis_host = os.getenv("REDIS_HOST", "localhost")
         self.redis_port = int(os.getenv("REDIS_PORT", "6379"))
         self.redis_password = os.getenv("REDIS_PASSWORD", None)
+
+        # Flag to indicate whether to add new line after printing responses
+        self.print_newline = False
 
         # Create logs directory
         log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
@@ -71,7 +75,6 @@ class StreamClient:
             match response.status_code:
                 case 204:
                     logger.info("Request accepted, reading from stream...")
-                    print_fn("Request accepted, waiting for response...")
                     self.read_from_stream(user_id, print_fn)
                 case 500:
                     logger.error(
@@ -116,11 +119,23 @@ class StreamClient:
                 if not response:
                     logger.debug("No messages received, waiting...")
                     time.sleep(1)
-                    read_id = ">"  # Read incoming message from now
+                    # Don't use ">" with xread, use "$" to read only new messages
+                    if read_id == ">":
+                        # Use "$" which means read only new entries (from latest)
+                        read_id = "$"
                     continue
 
-                self.process_redis_response(response, print_fn)
-                read_id = ">"  # Read incoming message from now
+                # Check if we need to stop processing messages
+                should_stop = self.process_redis_response(response, print_fn)
+                if should_stop:
+                    logger.info("Received stop signal. Exiting stream processing.")
+                    break
+
+                # Get the latest message ID we just processed
+                if self.last_message_processed_id:
+                    read_id = (
+                        self.last_message_processed_id
+                    )  # Start from last processed message
 
         except RedisError as e:
             logger.error(f"Redis error: {e}")
@@ -137,15 +152,18 @@ class StreamClient:
             else self.last_message_processed_id
         )
 
-    def process_redis_response(self, response: Any, print_fn: Callable) -> None:
+    def process_redis_response(self, response: Any, print_fn: Callable) -> bool:
         try:
             logger.debug(f"Processing Redis response: {response}")
+            should_stop = False
 
+            # Validate a list...
             self.format_is_valid(
                 isinstance(response, list), response, "response", print_fn
             )
 
             for stream_entry in response:
+                # ... of list ... (lenght 2: key of type str - USER - and value of type list - STREAM -)
                 self.format_is_valid(
                     (isinstance(stream_entry, list) and len(stream_entry) == 2),
                     stream_entry,
@@ -155,13 +173,15 @@ class StreamClient:
 
                 _, messages = stream_entry
 
+                # ... of list (1 element per stream chunk)...
                 self.format_is_valid(
                     isinstance(messages, list), messages, "messages", print_fn
                 )
 
+                # ... of tuple (single stream chunk)
                 for message in messages:
                     self.format_is_valid(
-                        (isinstance(message, list) and len(message) == 2),
+                        (isinstance(message, tuple) and len(message) == 2),
                         message,
                         "message",
                         print_fn,
@@ -169,7 +189,10 @@ class StreamClient:
 
                     message_id, data = message
                     self.last_message_processed_id = message_id
-                    self.process_message(message_id, data, print_fn)
+                    if self.process_message(message_id, data, print_fn):
+                        should_stop = True
+
+            return should_stop
 
         except ValueError as e:
             logger.exception(f"Format validation error: {e}")
@@ -178,6 +201,7 @@ class StreamClient:
         except Exception as e:
             logger.exception(f"Error processing Redis response: {e}")
             print_fn(f"Error processing message: {str(e)}", "error")
+            return False
 
     def format_is_valid(
         self,
@@ -192,15 +216,33 @@ class StreamClient:
             )
             raise ValueError(f"Invalid {checked_name} format")
 
-    def process_message(self, message_id: str, data: str, print_fn: Callable) -> None:
+    def process_message(self, message_id: str, data: Any, print_fn: Callable) -> bool:
         logger.debug(f"Processing message with ID: {message_id}")
         logger.debug(f"Message data: {data}")
         logger.info(f"Message received: {message_id}")
 
         try:
-            response_obj = Response.model_validate_json(data)
-            print_fn(response_obj.response)
+            # Handle case where data is already a dictionary (not a JSON string)
+            if isinstance(data, dict):
+                response_obj = Response.model_validate(data)
+            else:
+                response_obj = Response.model_validate_json(data)
+
+            logger.debug(f"Parsed response object: {response_obj}")
+
+            # Check if this is the stop message
+            if response_obj.done == "stop":
+                logger.debug("Received 'stop' signal, will exit stream processing")
+                return True  # Signal to stop processing
+
+            # Add a small random delay to simulate typing (between 5-20 milliseconds)
+            time.sleep(random.uniform(0.005, 0.02))
+
+            # Print the response without newline
+            print_fn(response_obj.response, end="")
+            return False  # Continue processing messages
 
         except Exception as e:
             logger.error(f"Failed to parse response model: {e}")
             print_fn(f"\nMessage: {data}", "error")
+            return False  # Continue processing in case of error

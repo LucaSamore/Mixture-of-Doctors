@@ -164,11 +164,6 @@ echo -e "${YELLOW}To stop all services run: ${NC}./undeploy.sh"
 echo -e "${YELLOW}To view Docker Swarm services: ${NC}docker service ls"
 echo -e "${YELLOW}To view logs for a service: ${NC}docker service logs <service_name>"
 
-# Optionally show CLI help
-if command -v uv &> /dev/null; then
-    uv run frontend/cli/src/cli/client.py mod --help
-fi
-
 # Check deployment status of all services
 echo -e "${YELLOW}Checking deployment status of all stacks...${NC}"
 sleep 5
@@ -196,3 +191,8 @@ cat frontend/cli/src/cli/.env 2>/dev/null || echo "No .env file found for CLI"
 
 echo
 echo -e "${YELLOW}Make sure the above configuration is correct for your environment.${NC}"
+
+# Optionally show CLI help
+if command -v uv &> /dev/null; then
+    uv run frontend/cli/src/cli/client.py mod --help
+fi

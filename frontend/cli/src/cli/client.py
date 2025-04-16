@@ -80,15 +80,21 @@ def ask(
         )
         return
 
+    if not oneshot and question:
+        display_chat_history(username_from_file)
+
     # Custom callback to print and capture the answer
-    def capture_answer(message, message_type=None):
+    def capture_answer(message, message_type=None, end="\n"):
         nonlocal current_answer  # Use nonlocal instead of global
-        typer.echo(message)
+        typer.echo(message, nl=(end == "\n"))
         if message_type is None:
             if current_answer is None:
                 current_answer = message
             else:
                 current_answer += message
+
+    typer.echo(f"\n{username_from_file.title()}: {question}")
+    typer.echo("Virtual Doctor: ", nl=False)
 
     stream_client.send_request(question, username_from_file, capture_answer)
 
@@ -96,8 +102,6 @@ def ask(
         chat_history_client.create_or_update_chat(
             username_from_file, question, current_answer
         )
-
-        display_chat_history(username_from_file)
 
 
 @mod_app.command()
@@ -114,14 +118,16 @@ def quit() -> None:
 def new_chat(username: str):
     write_username_to_file(username)
 
+    welcome_message = "I'm your virtual doctor, ready to assist with your health questions. How can I help you today?"
+
     chat_history_client.create_or_update_chat(
         username,
-        "Welcome message",
-        "Hello! I'm your virtual doctor. How can I help you today?",
+        "Create a chat session",
+        welcome_message,
     )
 
     typer.echo(f"Welcome, {username}! A new chat session has been created for you.")
-    typer.echo("I'm your virtual doctor, ready to assist with your health questions.")
+    typer.echo(welcome_message)
     print_help_message()
 
 
@@ -137,9 +143,8 @@ def display_chat_history(username: str):
     if history and history.conversation:
         typer.echo("\n=== Chat History ===")
         for i, item in enumerate(history.conversation):
-            typer.echo(f"\nQ{i + 1}: {item.question}")
-            typer.echo(f"A{i + 1}: {item.answer}")
-        typer.echo("\n==================")
+            typer.echo(f"\n{username.title()}: {item.question}")
+            typer.echo(f"Virtual Doctor: {item.answer}")
     else:
         typer.echo("No chat history found or unable to retrieve chat history.")
 
