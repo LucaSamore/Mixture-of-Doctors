@@ -4,6 +4,7 @@ from kafka import KafkaConsumer
 from loguru import logger
 from groq import Groq
 from dotenv import load_dotenv
+from typing import Any, Dict
 import redis
 import os
 import json
@@ -24,10 +25,10 @@ class KafkaClient:
         self.consumer.subscribe([topic])
         logger.info(f"Kafka consumer initialized for topic: {topic}")
 
-    def get_consumer(self):
+    def get_consumer(self) -> KafkaConsumer:
         return self.consumer
 
-    def commit(self):
+    def commit(self) -> bool:
         try:
             self.consumer.commit()
             return True
@@ -35,7 +36,7 @@ class KafkaClient:
             logger.error(f"Error committing offsets: {e}")
             return False
 
-    def close(self):
+    def close(self) -> None:
         self.consumer.close()
 
 
@@ -49,8 +50,8 @@ class RedisClient:
         )
         logger.info("Redis client initialized")
 
-    def stream_message(self, stream_id, fields):
-        self.client.xadd(name=stream_id, fields=fields)
+    def stream_message(self, stream_id: str, fields: Dict[str, Any]) -> None:
+        self.client.xadd(name=stream_id, fields=fields)  # type: ignore
 
 
 # cluster_host = os.getenv("CLUSTER_HOST")
@@ -61,7 +62,7 @@ class LLMClient:
         self.model = "llama-3.3-70b-versatile"
         logger.info(f"LLM client initialized with model: {self.model}")
 
-    async def generate(self, prompt, stream=True):
+    async def generate(self, prompt: str, stream: bool = True) -> Any:
         return self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "system", "content": prompt}],
@@ -69,7 +70,7 @@ class LLMClient:
         )
 
 
-def prepare_prompt(template_path, **kwargs):
+def prepare_prompt(template_path: str, **kwargs: str) -> str:
     with open(template_path, "r") as file:
         content = file.read()
     return string.Template(content).substitute(kwargs)

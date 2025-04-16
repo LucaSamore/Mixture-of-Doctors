@@ -3,7 +3,7 @@ from loguru import logger
 from synthesizer.synthesis import start_consumer
 
 
-async def main():
+async def main() -> None:
     await start_consumer()
 
 

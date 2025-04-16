@@ -1,6 +1,6 @@
 from loguru import logger
 from pydantic import BaseModel
-from typing import Dict, Set
+from typing import Any, AsyncIterator, Dict, Set
 from .utilities import LLMClient, KafkaClient, RedisClient, prepare_prompt
 import asyncio
 import os
@@ -37,20 +37,27 @@ class QueryData(BaseModel):
 active_queries: Dict[str, QueryData] = {}
 
 
-async def start_consumer():
-    asyncio.create_task(run_reader())
-    logger.info("Consumer started")
+async def start_consumer() -> None:
+    try:
+        asyncio.create_task(run_reader())
+        logger.info("Consumer started")
+    except Exception as e:
+        logger.error(f"Error starting consumer: {e}")
+        raise
 
 
-async def run_reader():
+async def run_reader() -> None:
     consumer = kafka.get_consumer()
 
     try:
         while True:
             for message in consumer:
                 logger.info(f"Received message: {message.value}")
-                response = RagResponse(**message.value)
-                await handle_response(response)
+                try:
+                    response = RagResponse(**message.value)
+                    await handle_response(response)
+                except Exception as e:
+                    logger.error(f"Error processing message: {e}")
     except Exception as e:
         logger.error(f"Consumer error: {e}")
     finally:
@@ -58,7 +65,7 @@ async def run_reader():
         logger.info("Response processor stopped")
 
 
-async def handle_response(response: RagResponse):
+async def handle_response(response: RagResponse) -> None:
     user_id = response.user_id
 
     # Inizializza i dati della query se è la prima risposta
@@ -80,7 +87,10 @@ async def handle_response(response: RagResponse):
 
     logger.info(f"All {query_data.total} responses received for user {user_id}")
 
-    kafka.commit()
+    try:
+        kafka.commit()
+    except Exception as e:
+        logger.error(f"Error committing offsets: {e}")
 
     await synthesize_and_send_response(query_data)
 
@@ -105,7 +115,7 @@ def is_query_complete(query_data: QueryData) -> bool:
     return True
 
 
-async def synthesize_and_send_response(query_data: QueryData):
+async def synthesize_and_send_response(query_data: QueryData) -> None:
     try:
         disease_responses = []
         for disease, response in query_data.responses.items():
@@ -128,33 +138,42 @@ async def synthesize_and_send_response(query_data: QueryData):
 
 async def generate_synthesis(
     original_query: str, formatted_responses: str, stream: bool
-):
+) -> AsyncIterator[Any]:
     prompt = prepare_prompt(
         SYNTHESIS_PROMPT_PATH,
         original_query=original_query,
         responses=formatted_responses,
     )
 
-    response = await llm.generate(prompt, stream=stream)
-    logger.success("Response synthesis completed")
+    try:
+        response = await llm.generate(prompt, stream=stream)
+        logger.success("Response synthesis completed")
+    except Exception as e:
+        logger.error(f"Error generating synthesis: {e}")
+        raise
 
     return response
 
 
-async def send_response(user_id: str, query: str, response_stream):
+async def send_response(
+    user_id: str, query: str, response_stream: AsyncIterator[Any]
+) -> None:
     """Invia la risposta sintetizzata all'utente tramite Redis."""
-    for chunk in response_stream:
-        content = chunk.choices[0].delta.content
-        if content:
-            logger.success(f"Streaming chunk: {content}")
+    try:
+        async for chunk in response_stream:
+            content = chunk.choices[0].delta.content
+            if content:
+                logger.debug(f"Streaming chunk: {content}")
 
-            redis.stream_message(
-                stream_id=user_id,
-                fields={
-                    "query": query,
-                    "response": content,
-                    "done": str(
-                        True if chunk.choices[0].finish_reason == "stop" else False
-                    ),
-                },
-            )
+                redis.stream_message(
+                    stream_id=user_id,
+                    fields={
+                        "query": query,
+                        "response": content,
+                        "done": str(
+                            True if chunk.choices[0].finish_reason == "stop" else False
+                        ),
+                    },
+                )
+    except Exception as e:
+        logger.error(f"Error sending to Redis: {e}")
