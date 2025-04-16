@@ -91,6 +91,8 @@ jobs:
   
   test-orchestrator:
     runs-on: ubuntu-latest
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       
@@ -107,6 +109,7 @@ jobs:
         
       - name: Run orchestrator tests
         run: cd orchestrator && uv run pytest -v tests/
+        
   test-rag-module:
     runs-on: ubuntu-latest
     steps:

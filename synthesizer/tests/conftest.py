@@ -109,4 +109,10 @@ def mock_llm_response_stream():
         MagicMock(delta=MagicMock(content="a chronic condition."), finish_reason="stop")
     ]
 
-    return [mock_chunk1, mock_chunk2]
+    async def mock_stream():
+        yield mock_chunk1
+        yield mock_chunk2
+
+    mock_gen = AsyncMock()
+    mock_gen.return_value = mock_stream()
+    return mock_gen
