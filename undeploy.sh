@@ -27,6 +27,7 @@ echo -e "${YELLOW}=== Undeploying all Docker Swarm stacks ===${NC}"
 
 # Remove all stacks in reverse order of deployment
 remove_stack "orchestrator"
+remove_stack "synthesizer"
 remove_stack "chat-history" 
 remove_stack "redis"
 remove_stack "kafka"

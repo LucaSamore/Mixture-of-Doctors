@@ -22,6 +22,7 @@ class KafkaClient:
             enable_auto_commit=False,
             auto_offset_reset="earliest",
         )
+        logger.info(f"Kafka broker: {os.getenv('KAFKA_BROKER')} AYOOO!")
         self.consumer.subscribe([topic])
         logger.info(f"Kafka consumer initialized for topic: {topic}")
 

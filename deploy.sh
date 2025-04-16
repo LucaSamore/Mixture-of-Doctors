@@ -134,6 +134,13 @@ deploy_service "chat-history" "chat-history" "mod/chat-history:latest"
 echo -e "${GREEN}Waiting for message broker other 20 seconds... ${NC}"
 sleep 20
 
+# Deploy Synthesizer with Docker Swarm
+echo -e "${YELLOW}=== Deploying Synthesizer ===${NC}"
+deploy_service "synthesizer" "synthesizer" "mod/synthesizer:latest"
+echo -e "${GREEN}Synthesizer deployment completed.${NC}"
+
+sleep 20
+
 # Deploy Orchestrator with Docker Swarm
 deploy_service "orchestrator" "orchestrator" "mod/orchestrator:latest"
 
@@ -175,6 +182,7 @@ echo -e "${GREEN}=== Access Information ===${NC}"
 echo -e "Kafka UI: http://localhost:8080"
 echo -e "MongoDB UI: http://localhost:8081"
 echo -e "Orchestrator: http://localhost:8082/docs"
+echo -e "Synthesizer: http://localhost:7000"
 echo -e "Chat History API: http://localhost:8089"
 echo -e "Redis UI: http://localhost:5540"
 echo -e "Qdrant Dashboards:"

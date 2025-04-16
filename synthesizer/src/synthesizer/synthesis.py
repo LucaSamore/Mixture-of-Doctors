@@ -8,7 +8,6 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SYNTHESIS_PROMPT_PATH = os.path.join(BASE_DIR, "prompt/synth_prompt.md")
 
-
 kafka = KafkaClient()
 redis = RedisClient()
 llm = LLMClient()
@@ -68,7 +67,6 @@ async def run_reader() -> None:
 async def handle_response(response: RagResponse) -> None:
     user_id = response.user_id
 
-    # Inizializza i dati della query se è la prima risposta
     if user_id not in active_queries:
         active_queries[user_id] = QueryData(
             user_id=user_id,
@@ -77,7 +75,6 @@ async def handle_response(response: RagResponse) -> None:
             stream=response.stream,
         )
 
-    # Aggiorna i dati della query con la nuova risposta
     query_data = active_queries[user_id]
     query_data.responses[response.disease] = response.response
     query_data.received_numbers.add(response.number)
