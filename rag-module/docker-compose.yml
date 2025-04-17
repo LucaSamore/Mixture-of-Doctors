@@ -10,7 +10,7 @@ services:
       - KAFKA_BROKER=${KAFKA_BROKER}
       - KAFKA_PRODUCER_TOPIC=${KAFKA_PRODUCER_TOPIC}
     volumes:
-      - ../../config.json:/app/config.json
+      - ../config.json:/app/config.json
     depends_on:
       - qdrant
     deploy:
