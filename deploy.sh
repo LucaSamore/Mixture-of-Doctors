@@ -159,6 +159,11 @@ else
     echo -e "${YELLOW}Skipping data ingestion. To run ingestion, use './deploy.sh --ingest'${NC}"
 fi
 
+# Deploy Nginx reverse proxy
+echo -e "${YELLOW}=== Deploying Nginx reverse proxy ===${NC}"
+deploy_service "nginx" "infrastructure/nginx" ""
+echo -e "${GREEN}Nginx deployment completed.${NC}"
+
 echo -e "${GREEN}Deployment script finished.${NC}"
 echo -e "${YELLOW}To stop all services run: ${NC}./undeploy.sh"
 echo -e "${YELLOW}To view Docker Swarm services: ${NC}docker service ls"
@@ -174,6 +179,7 @@ docker service ls
 
 echo -e "${GREEN}All services deployed successfully!${NC}"
 echo -e "${GREEN}=== Access Information ===${NC}"
+echo -e "Nginx Gateway: http://localhost:8086"
 echo -e "Kafka UI: http://localhost:8080"
 echo -e "MongoDB UI: http://localhost:8081"
 echo -e "Orchestrator: http://localhost:8082/docs"

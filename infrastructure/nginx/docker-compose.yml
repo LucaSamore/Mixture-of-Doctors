@@ -2,25 +2,35 @@ services:
   nginx:
     image: nginx:latest
     ports:
-      - "8000:80"
+      - "8086:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    networks:
-      - mod-network
     deploy:
       mode: replicated
-      replicas: 1
+      replicas: 2
       restart_policy:
         condition: any
       update_config:
         parallelism: 1
         delay: 5s
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
+    entrypoint: >
+      /bin/sh -c "
+        echo 'Waiting for services to be ready...'
+        until getent hosts orchestrator && getent hosts chat-history; do
+          echo 'Waiting for backend services to be available...'
+          sleep 3
+        done
+        echo 'All services are available. Starting nginx...'
+        exec nginx -g 'daemon off;'
+      "
 
 networks:
-  mod-network:
+  default:
+    name: mod-network
     external: true
