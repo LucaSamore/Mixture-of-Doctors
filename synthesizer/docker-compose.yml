@@ -1,0 +1,26 @@
+services:
+  synthesizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mod/synthesizer:latest
+    ports:
+      - "7000:7000"
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - KAFKA_BROKER=${KAFKA_BROKER}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+networks:
+  default:
+    name: mod-network
+    external: true

@@ -9,8 +9,14 @@ wheels/
 # Virtual environments
 .venv
 
+# Project's files
+frontend/cli/src/cli/username.txt
+
 # Init scripts
 init-scripts/
 
-# Enviroment variable files
 .env
+
+*.log
+
+scripts/setup_envs.sh

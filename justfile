@@ -19,6 +19,3 @@ lint:
 	
 format:
 	uv run ruff format
-
-cli:
-    uv run python frontend/cli/src/cli/client.py
