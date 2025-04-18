@@ -22,7 +22,7 @@ class Response(BaseModel):
 class StreamClient:
     def __init__(self):
         # Initialize instance variables from environment
-        self.last_message_processed_id = ""
+        self.last_message_processed_id = None
         self.request_timeout = int(os.getenv("REQUEST_TIMEOUT", "30"))
         self.orchestrator_url = os.getenv(
             "ORCHESTRATOR_URL", "http://your-nginx-url/path"
@@ -66,6 +66,9 @@ class StreamClient:
     def send_request(self, query: Query, user_id: str, print_fn: Callable) -> None:
         payload = {"query": query, "user_id": user_id}
 
+        # Get the last message ID before sending the request
+        self._update_last_message_id(user_id)
+
         try:
             logger.info(f"Sending request to {self.orchestrator_url}")
             response = requests.post(
@@ -101,15 +104,28 @@ class StreamClient:
             logger.error(f"Request failed: {e}")
             print_fn(f"Failed to send request: {str(e)}", "error")
 
+    def _update_last_message_id(self, user_id: str) -> None:
+        redis_client = self.create_redis_connection()
+        if redis_client:
+            latest_messages = redis_client.xrevrange(user_id, count=1)
+
+            if latest_messages:
+                self.last_message_processed_id = latest_messages[0][0]  # type: ignore
+                logger.debug(
+                    f"Last message ID before request: {self.last_message_processed_id}"
+                )
+            else:
+                self.last_message_processed_id = "0"
+                logger.debug("No previous messages found, starting from 0")
+
     def read_from_stream(self, user_id: str, print_fn: Callable) -> None:
         redis_client = self.create_redis_connection()
         if redis_client is None:
             return
         logger.debug(f"Reading from stream key: {user_id}")
 
-        read_id = self.starting_point()
+        read_id = self.starting_point(user_id, redis_client)
         logger.debug(f"Starting from message ID: {read_id}")
-
         try:
             while True:
                 response = redis_client.xread({user_id: read_id}, count=10, block=2000)
@@ -119,10 +135,6 @@ class StreamClient:
                 if not response:
                     logger.debug("No messages received, waiting...")
                     time.sleep(1)
-                    # Don't use ">" with xread, use "$" to read only new messages
-                    if read_id == ">":
-                        # Use "$" which means read only new entries (from latest)
-                        read_id = "$"
                     continue
 
                 # Check if we need to stop processing messages
@@ -145,12 +157,23 @@ class StreamClient:
             logger.exception("Unexpected error")
             print_fn(f"Unexpected error: {str(e)}", "error")
 
-    def starting_point(self) -> str:
-        return (
-            "0"
-            if self.last_message_processed_id == ""
-            else self.last_message_processed_id
+    def starting_point(self, user_id: str, redis_client: Redis) -> str:
+        if not self.last_message_processed_id:
+            return "0"
+
+        next_messages = redis_client.xrange(
+            user_id,
+            min=f"({self.last_message_processed_id}",
+            max="+",  # Until the end of the stream
         )
+
+        if next_messages:
+            read_id = next_messages[0][0]  # type: ignore
+            logger.debug(f"Found new messages, starting from ID: {read_id}")
+            return read_id
+
+        logger.debug("No new messages yet, waiting with ID: $")
+        return "$"
 
     def process_redis_response(self, response: Any, print_fn: Callable) -> bool:
         try:
