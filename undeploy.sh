@@ -82,9 +82,28 @@ done
 
 # If --volumes flag is used, prune volumes
 if [ "$REMOVE_VOLUMES" = true ]; then
-    echo -e "${YELLOW}\nPruning all unused volumes...${NC}"
+    echo -e "${YELLOW}\nPruning all volumes...${NC}"
+            
+    # Stop all containers first to release any volume locks
+    echo -e "${YELLOW}Stopping all running containers...${NC}"
+    if docker ps -q | grep -q .; then
+        docker stop $(docker ps -q)
+    fi
+    
+    # Get all volume names
+    VOLUMES=$(docker volume ls -q)
+    if [ -n "$VOLUMES" ]; then
+        for vol in $VOLUMES; do
+            echo -e "${YELLOW}Removing volume: $vol${NC}"
+            docker volume rm $vol --force 2>/dev/null || true
+            sleep 1
+        done
+    fi
+    
+    # Final pruning to catch anything left
     docker volume prune -f
-    echo -e "${GREEN}Volumes pruned${NC}"
+    
+    echo -e "${GREEN}Volumes cleanup completed${NC}"
 fi
 
 # Check if swarm network still exists and remove if not in use
