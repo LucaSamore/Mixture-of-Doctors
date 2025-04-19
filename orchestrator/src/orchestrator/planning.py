@@ -132,7 +132,7 @@ async def ask_many_doctors(
     for i, dsq in enumerate(questions, start=1):
         topic = f"rag-module-{dsq.disease}"
         msg = create_rag_module_message(
-            chatbot_query, dsq.question, stream=False, number=i, total=len(diseases) - 1
+            chatbot_query, dsq.question, stream=False, number=i, total=len(questions)
         )
         logger.info(f"Sending message to {topic}: {msg.model_dump_json(indent=4)}")
         kafka_producer.send(topic=topic, value=msg.model_dump())
