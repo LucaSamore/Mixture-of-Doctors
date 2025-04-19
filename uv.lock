@@ -13,6 +13,24 @@ members = [
 ]
 
 [[package]]
+name = "accelerate"
+version = "1.6.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "psutil" },
+    { name = "pyyaml" },
+    { name = "safetensors" },
+    { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8a/6e/c29a1dcde7db07f47870ed63e5124086b11874ad52ccd533dc1ca2c799da/accelerate-1.6.0.tar.gz", hash = "sha256:28c1ef1846e690944f98b68dc7b8bb6c51d032d45e85dcbb3adb0c8b99dffb32", size = 363804 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/63/b1/8198e3cdd11a426b1df2912e3381018c4a4a55368f6d0857ba3ca418ef93/accelerate-1.6.0-py3-none-any.whl", hash = "sha256:1aee717d3d3735ad6d09710a7c26990ee4652b79b4e93df46551551b5227c2aa", size = 354748 },
+]
+
+[[package]]
 name = "annotated-types"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -376,6 +394,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/1b/38/d7f80fd13e6582fb8e0df8c9a653dcc02b03ca34f4d72f34869298c5baf8/h2-4.2.0.tar.gz", hash = "sha256:c8a52129695e88b1a0578d8d2cc6842bbd79128ac685463b887ee278126ad01f", size = 2150682 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d0/9e/984486f2d0a0bd2b024bf4bc1c62688fcafa9e61991f041fb0e2def4a982/h2-4.2.0-py3-none-any.whl", hash = "sha256:479a53ad425bb29af087f3458a61d30780bc818e4ebcf01f0b536ba916462ed0", size = 60957 },
+]
+
+[[package]]
+name = "hf-xet"
+version = "1.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/68/4c363b2e62cb3dbe12d2257ba9b22f101384692d4b9727c5f72433472cff/hf_xet-1.0.3.tar.gz", hash = "sha256:a6d16861a06dd4b8f7229c16b392c5fb8b9588ced89a6ee9bc3e66227f794353", size = 257227 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/26/12/ebbba4b64cb9c908bd5dee355da27f3cc5ad4f29b4b2835041d363388363/hf_xet-1.0.3-cp37-abi3-macosx_10_12_x86_64.whl", hash = "sha256:0705e5db0da5794ab048a8662a7b3aba220f963270b26abc92e8d05abca22451", size = 4979740 },
+    { url = "https://files.pythonhosted.org/packages/58/8f/34eadc408b834bcb55886b242a9783da3f63508c4bcbfda7a4f21e61f3d1/hf_xet-1.0.3-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:09a9565ca84049d48c99c83a82d08fbc21d63c04811fd2f7dd088292c1185bc5", size = 4806773 },
+    { url = "https://files.pythonhosted.org/packages/a1/de/00b2e2568a39c01b0e013db3300f4d5841f2e597d7b0518923c7881bd166/hf_xet-1.0.3-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:70e18534d46ab92bbc3125addaebc145f9b27e06eecd67b40c4342f4b92b677f", size = 53812632 },
+    { url = "https://files.pythonhosted.org/packages/e2/d8/4ff790370a6795418196553c33e7bcceaa73a7d587e21e4ccb7661b54a2a/hf_xet-1.0.3-cp37-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:da28fd32213ad5b8f60771aba44ac032ba19d752928cfd95914f09146b3f51ec", size = 52277180 },
+    { url = "https://files.pythonhosted.org/packages/83/dd/7b432918a3e9e09794674b81e852acc6e14177c0a4466ac0566b7e7f47a4/hf_xet-1.0.3-cp37-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:1b71118b8f7e9edf1ae56282388794f351163c7de5c22ea3737dffa9313f500e", size = 53309852 },
+    { url = "https://files.pythonhosted.org/packages/4d/a2/d7a5f452a3a8faaa82aeb3aceddab2e103c1b7028a00bbc4caebca5d79fe/hf_xet-1.0.3-cp37-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:5927d1986f87b7b80616eb6353a1402be1d72c46b6b0709b01ffc7623a159563", size = 53739471 },
+    { url = "https://files.pythonhosted.org/packages/82/81/966f800933043c0be989306f5224ef058543f7848f1e78d7ef3305bd069a/hf_xet-1.0.3-cp37-abi3-win_amd64.whl", hash = "sha256:014b5a40e62ad334f21513e5ba39b419117396031e9264dfc15dd598a1595029", size = 4123538 },
 ]
 
 [[package]]
@@ -937,6 +970,21 @@ wheels = [
 ]
 
 [[package]]
+name = "psutil"
+version = "7.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/80/336820c1ad9286a4ded7e845b2eccfcb27851ab8ac6abece774a6ff4d3de/psutil-7.0.0.tar.gz", hash = "sha256:7be9c3eba38beccb6495ea33afd982a44074b78f28c434a1f51cc07fd315c456", size = 497003 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/e6/2d26234410f8b8abdbf891c9da62bee396583f713fb9f3325a4760875d22/psutil-7.0.0-cp36-abi3-macosx_10_9_x86_64.whl", hash = "sha256:101d71dc322e3cffd7cea0650b09b3d08b8e7c4109dd6809fe452dfd00e58b25", size = 238051 },
+    { url = "https://files.pythonhosted.org/packages/04/8b/30f930733afe425e3cbfc0e1468a30a18942350c1a8816acfade80c005c4/psutil-7.0.0-cp36-abi3-macosx_11_0_arm64.whl", hash = "sha256:39db632f6bb862eeccf56660871433e111b6ea58f2caea825571951d4b6aa3da", size = 239535 },
+    { url = "https://files.pythonhosted.org/packages/2a/ed/d362e84620dd22876b55389248e522338ed1bf134a5edd3b8231d7207f6d/psutil-7.0.0-cp36-abi3-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:1fcee592b4c6f146991ca55919ea3d1f8926497a713ed7faaf8225e174581e91", size = 275004 },
+    { url = "https://files.pythonhosted.org/packages/bf/b9/b0eb3f3cbcb734d930fdf839431606844a825b23eaf9a6ab371edac8162c/psutil-7.0.0-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4b1388a4f6875d7e2aff5c4ca1cc16c545ed41dd8bb596cefea80111db353a34", size = 277986 },
+    { url = "https://files.pythonhosted.org/packages/eb/a2/709e0fe2f093556c17fbafda93ac032257242cabcc7ff3369e2cb76a97aa/psutil-7.0.0-cp36-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a5f098451abc2828f7dc6b58d44b532b22f2088f4999a937557b603ce72b1993", size = 279544 },
+    { url = "https://files.pythonhosted.org/packages/50/e6/eecf58810b9d12e6427369784efe814a1eec0f492084ce8eb8f4d89d6d61/psutil-7.0.0-cp37-abi3-win32.whl", hash = "sha256:ba3fcef7523064a6c9da440fc4d6bd07da93ac726b5733c29027d7dc95b39d99", size = 241053 },
+    { url = "https://files.pythonhosted.org/packages/50/1b/6921afe68c74868b4c9fa424dad3be35b095e16687989ebbb50ce4fceb7c/psutil-7.0.0-cp37-abi3-win_amd64.whl", hash = "sha256:4cf3d4eb1aa9b348dec30105c55cd9b7d4629285735a102beb4441e38db90553", size = 244885 },
+]
+
+[[package]]
 name = "pydantic"
 version = "2.11.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1124,9 +1172,10 @@ name = "rag-module"
 version = "0.1.0"
 source = { editable = "rag-module" }
 dependencies = [
+    { name = "accelerate" },
     { name = "beautifulsoup4" },
-    { name = "dotenv" },
     { name = "groq" },
+    { name = "hf-xet" },
     { name = "kafka-python" },
     { name = "loguru" },
     { name = "pydantic" },
@@ -1137,9 +1186,10 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "accelerate", specifier = ">=1.6.0" },
     { name = "beautifulsoup4", specifier = ">=4.13.3" },
-    { name = "dotenv", specifier = ">=0.9.9" },
     { name = "groq", specifier = ">=0.21.0" },
+    { name = "hf-xet", specifier = ">=1.0.3" },
     { name = "kafka-python", specifier = "==2.1.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pydantic", specifier = ">=2.11.1" },
