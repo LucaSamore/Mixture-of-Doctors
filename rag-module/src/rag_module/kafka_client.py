@@ -53,19 +53,27 @@ class KafkaClient:
             return RAGModuleMessage.model_validate(msg.value)
         return None
 
-    async def send_message_to_queue(
-        self, stream, incoming_message: RAGModuleMessage
+    def send_message_to_queue(
+        self, chat_completion, incoming_message: RAGModuleMessage
     ) -> None:
         logger.info(f"Sending stream message to {SYNTHESIZER_TOPIC}")
-        async for chunk in stream:
-            content = chunk.choices[0].delta.content
-            synthesizer_message = self.create_synthesizer_message(
-                incoming_message=incoming_message, response=content
-            )
-            key = synthesizer_message.original_query  # TODO: convert to query_id
+        content = chat_completion.choices[0].message.content
+        logger.info(f"Chat completion content: {content}")
+        synthesizer_message = self.create_synthesizer_message(
+            incoming_message=incoming_message, response=content
+        )
+        logger.info(f"Synthesizer message: {synthesizer_message}")
+        key = synthesizer_message.original_query  # TODO: convert to query_id
+        try:
             self.producer.send(
-                SYNTHESIZER_TOPIC, key, synthesizer_message.model_dump_json()
+                topic=SYNTHESIZER_TOPIC,
+                key=key,
+                value=synthesizer_message.model_dump_json(),
             )
+        except Exception as e:
+            logger.error(f"Error sending message to synthesizer topic: {e}")
+            raise
+        logger.info("Message sent to synthesizer topic")
 
     def create_synthesizer_message(
         self, incoming_message: RAGModuleMessage, response: str

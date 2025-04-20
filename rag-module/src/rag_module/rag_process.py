@@ -91,15 +91,16 @@ async def augment(embeddings: List[Payload], query: Query, user_id: str) -> Prom
 
 async def generate(prompt: Prompt, incoming_message: RAGModuleMessage) -> None:
     logger.info(f"Generating response for query:\n{incoming_message}")
-    stream = await llm_groq_client.chat.completions.create(
-        messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": incoming_message.rag_query},
-        ],
-        model="llama-3.3-70b-versatile",
-        stream=True,
-    )
+    # ! TODO: refactor this function
     if incoming_message.total == 1:
+        stream = await llm_groq_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": incoming_message.rag_query},
+            ],
+            model="llama-3.3-70b-versatile",
+            stream=True,
+        )
         async for chunk in stream:
             content = chunk.choices[0].delta.content
             redis_client.xadd(
@@ -111,7 +112,16 @@ async def generate(prompt: Prompt, incoming_message: RAGModuleMessage) -> None:
                 },
             )
     else:
-        await kafka_client.send_message_to_queue(stream, incoming_message)
+        chat_completion = await llm_groq_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": incoming_message.rag_query},
+            ],
+            model="llama-3.3-70b-versatile",
+            stop=None,
+            stream=False,
+        )
+        kafka_client.send_message_to_queue(chat_completion, incoming_message)
 
 
 def prepare_prompt(template: str, **kwargs) -> str:
