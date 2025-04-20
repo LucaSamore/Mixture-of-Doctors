@@ -3,3 +3,4 @@ qdrant-client
 requests
 beautifulsoup4
 argparse
+hf-xet

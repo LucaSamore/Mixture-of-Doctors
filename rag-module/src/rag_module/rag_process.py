@@ -16,7 +16,7 @@ import json
 
 
 PROMPT_FILE = "/app/prompts/rag_module.md"
-DOMAIN = os.environ.get("RAG_DOMAIN")
+DOMAIN = os.getenv("RAG_DOMAIN")
 CHAT_HISTORY_URL = os.getenv("CHAT_HISTORY_URL")
 
 Query: TypeAlias = str
