@@ -40,6 +40,7 @@ class KafkaClient:
         self.consumer.subscribe([self.topic])
         self.producer = KafkaProducer(
             bootstrap_servers=os.getenv("KAFKA_BROKER"),
+            key_serializer=str.encode,
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
             retries=5,
             retry_backoff_ms=1000,
@@ -64,15 +65,9 @@ class KafkaClient:
         )
         logger.info(f"Synthesizer message: {synthesizer_message}")
         key = synthesizer_message.original_query  # TODO: convert to query_id
-        try:
-            self.producer.send(
-                topic=SYNTHESIZER_TOPIC,
-                key=key,
-                value=synthesizer_message.model_dump_json(),
-            )
-        except Exception as e:
-            logger.error(f"Error sending message to synthesizer topic: {e}")
-            raise
+        self.producer.send(
+            topic=SYNTHESIZER_TOPIC, key=key, value=synthesizer_message.model_dump()
+        )
         logger.info("Message sent to synthesizer topic")
 
     def create_synthesizer_message(

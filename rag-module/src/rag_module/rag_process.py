@@ -118,7 +118,7 @@ async def generate(prompt: Prompt, incoming_message: RAGModuleMessage) -> None:
                 {"role": "user", "content": incoming_message.rag_query},
             ],
             model="llama-3.3-70b-versatile",
-            stop=None,
+            max_completion_tokens=1024,
             stream=False,
         )
         kafka_client.send_message_to_queue(chat_completion, incoming_message)
