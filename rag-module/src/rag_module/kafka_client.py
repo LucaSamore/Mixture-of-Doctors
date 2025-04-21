@@ -3,10 +3,15 @@ import os
 import json
 from pydantic import BaseModel
 from loguru import logger
-from typing import TypeAlias
+from typing import TypeAlias, Optional
+import uuid
+import dotenv
+
+dotenv.load_dotenv()
 
 Query: TypeAlias = str
 
+KAFKA_BROKER = os.getenv("KAFKA_BROKER")
 SYNTHESIZER_TOPIC = os.environ.get("KAFKA_PRODUCER_TOPIC")
 DOMAIN = os.environ.get("RAG_DOMAIN", "")
 
@@ -31,44 +36,82 @@ class SynthesizerMessage(BaseModel):
 
 
 class KafkaClient:
+    DEFAULT_RETRY_ATTEMPTS = 5
+    DEFAULT_RETRY_BACKOFF_MS = 1000
+    DEFAULT_RECONNECT_BACKOFF_MS = 1000
+    DEFAULT_RECONNECT_BACKOFF_MAX_MS = 10_000
+
     def __init__(self):
         self.topic = f"rag-module-{DOMAIN}"
+        self._setup_consumer()
+        self._setup_producer()
+
+    def _setup_consumer(self) -> None:
+        if not KAFKA_BROKER:
+            logger.error("KAFKA_BROKER environment variable not set")
+            raise ValueError("KAFKA_BROKER environment variable not set")
+
         self.consumer = KafkaConsumer(
-            bootstrap_servers=os.getenv("KAFKA_BROKER"),
+            bootstrap_servers=KAFKA_BROKER,
             value_deserializer=lambda v: json.loads(v.decode("utf-8")),
         )
         self.consumer.subscribe([self.topic])
+        logger.info(f"Kafka consumer subscribed to topic: {self.topic}")
+
+    def _setup_producer(self) -> None:
+        if not KAFKA_BROKER:
+            logger.error("KAFKA_BROKER environment variable not set")
+            raise ValueError("KAFKA_BROKER environment variable not set")
+
         self.producer = KafkaProducer(
-            bootstrap_servers=os.getenv("KAFKA_BROKER"),
+            bootstrap_servers=KAFKA_BROKER,
             key_serializer=str.encode,
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-            retries=5,
-            retry_backoff_ms=1000,
-            reconnect_backoff_ms=1000,
-            reconnect_backoff_max_ms=10_000,
+            retries=self.DEFAULT_RETRY_ATTEMPTS,
+            retry_backoff_ms=self.DEFAULT_RETRY_BACKOFF_MS,
+            reconnect_backoff_ms=self.DEFAULT_RECONNECT_BACKOFF_MS,
+            reconnect_backoff_max_ms=self.DEFAULT_RECONNECT_BACKOFF_MAX_MS,
         )
+        logger.info("Kafka producer initialized")
 
-    def get_message_from_queue(self) -> RAGModuleMessage | None:
+    def get_message_from_queue(self) -> Optional[RAGModuleMessage]:
         logger.info(f"Reading message from {self.topic}")
-        for msg in self.consumer:
-            return RAGModuleMessage.model_validate(msg.value)
+        try:
+            for msg in self.consumer:
+                return RAGModuleMessage.model_validate(msg.value)
+        except Exception as e:
+            logger.error(f"Error reading message from Kafka: {str(e)}")
         return None
 
     def send_message_to_queue(
         self, chat_completion, incoming_message: RAGModuleMessage
     ) -> None:
+        if not SYNTHESIZER_TOPIC:
+            logger.error("KAFKA_PRODUCER_TOPIC environment variable not set")
+            raise ValueError("KAFKA_PRODUCER_TOPIC environment variable not set")
+
         logger.info(f"Sending stream message to {SYNTHESIZER_TOPIC}")
-        content = chat_completion.choices[0].message.content
-        logger.info(f"Chat completion content: {content}")
-        synthesizer_message = self.create_synthesizer_message(
-            incoming_message=incoming_message, response=content
-        )
-        logger.info(f"Synthesizer message: {synthesizer_message}")
-        key = synthesizer_message.original_query  # TODO: convert to query_id
-        self.producer.send(
-            topic=SYNTHESIZER_TOPIC, key=key, value=synthesizer_message.model_dump()
-        )
-        logger.info("Message sent to synthesizer topic")
+
+        try:
+            content = chat_completion.choices[0].message.content
+            logger.info(f"Chat completion content: {content}")
+
+            synthesizer_message = self.create_synthesizer_message(
+                incoming_message=incoming_message, response=content
+            )
+            logger.info(f"Synthesizer message: {synthesizer_message}")
+
+            query_id = str(uuid.uuid4())
+
+            self.producer.send(
+                topic=SYNTHESIZER_TOPIC,
+                key=query_id,
+                value=synthesizer_message.model_dump(),
+            )
+            logger.info(f"Message sent to synthesizer topic with query_id: {query_id}")
+        except Exception as e:
+            logger.error(f"Error sending message to Kafka: {str(e)}")
+            raise
 
     def create_synthesizer_message(
         self, incoming_message: RAGModuleMessage, response: str
