@@ -5,9 +5,9 @@ from pydantic import BaseModel
 from loguru import logger
 from typing import TypeAlias, Optional
 import uuid
-import dotenv
+from dotenv import load_dotenv
 
-dotenv.load_dotenv()
+load_dotenv()
 
 Query: TypeAlias = str
 
