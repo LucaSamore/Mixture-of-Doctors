@@ -17,6 +17,10 @@ certifi==2025.1.31
     #   requests
 charset-normalizer==3.4.1
     # via requests
+colorama==0.4.6
+    # via
+    #   loguru
+    #   tqdm
 distro==1.9.0
     # via groq
 filelock==3.18.0
@@ -104,6 +108,8 @@ pydantic==2.11.2
     #   qdrant-client
 pydantic-core==2.33.1
     # via pydantic
+python-dotenv==1.1.0
+    # via rag-module (pyproject.toml)
 pyyaml==6.0.2
     # via
     #   accelerate
@@ -173,3 +179,5 @@ urllib3==2.3.0
     # via
     #   qdrant-client
     #   requests
+win32-setctime==1.2.0
+    # via loguru
