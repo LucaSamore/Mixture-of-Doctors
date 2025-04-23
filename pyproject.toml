@@ -19,4 +19,4 @@ venvPath = "."
 venv = ".venv"
 
 [tool.uv.workspace]
-members = ["frontend/cli", "chat-history"]
+members = ["orchestrator", "chat-history", "frontend/cli", "rag-module", "synthesizer"]

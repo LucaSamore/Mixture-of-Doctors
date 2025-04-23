@@ -1,88 +1,76 @@
 from typing import Optional
+from motor.motor_asyncio import AsyncIOMotorClientSession
 from chat_history.collection_model import ConversationModel, ConversationItem
+from loguru import logger
 
 
 class ConversationService:
-    """
-    Service for managing user conversations with transaction support
-    """
-
-    def __init__(self, db):
-        self.db = db
-        self.collection = db.conversations
+    def __init__(self, database):
+        self.database = database
+        self.conversation_collection = database.conversations
 
     async def add_conversation_item(
-        self, username: str, conversation_item: ConversationItem
+        self, username: str, conversation_item: Optional[ConversationItem] = None
     ) -> ConversationModel:
-        """
-        Add a new conversation item to the existing conversation
-
-        Args:
-            username: The username of the user to whom the conversation item belongs
-            conversation_item: The conversation item to add
-
-        Returns:
-            ConversationModel: The updated conversation with the new item
-        """
-
-        async def transaction_callback(session):
-            existing_conversation = await self.collection.find_one(
-                {"username": username}, session=session
-            )
-
-            if existing_conversation:
-                existing_conversation = ConversationModel(**existing_conversation)
-                existing_conversation.conversation.append(conversation_item)
-                conversation_dict = existing_conversation.model_dump()
-            else:
-                conversation_dict = ConversationModel(
-                    username=username, conversation=[conversation_item]
-                ).model_dump()
-
-            await self.collection.update_one(
-                {"username": username},
-                {"$set": conversation_dict},
-                upsert=True,
-                session=session,
-            )
-
-            return conversation_dict
-
-        async with await self.db.client.start_session() as session:
+        logger.info(
+            f"Starting transaction to add conversation item for user: {username}"
+        )
+        async with await self.database.client.start_session() as session:
             async with session.start_transaction():
-                conversation_dict = await transaction_callback(session)
+                updated_conversation = await self._update_conversation_transaction(
+                    session, username, conversation_item
+                )
+                logger.info(f"Transaction completed successfully for user: {username}")
+                return ConversationModel(**updated_conversation)
 
-                return ConversationModel(**conversation_dict)
+    async def _update_conversation_transaction(
+        self,
+        session: AsyncIOMotorClientSession,
+        username: str,
+        conversation_item: Optional[ConversationItem] = None,
+    ) -> dict:
+        existing_conversation = await self.conversation_collection.find_one(
+            {"username": username}, session=session
+        )
+
+        if existing_conversation:
+            logger.info(f"Updating existing conversation for user: {username}")
+            conversation_model = ConversationModel(**existing_conversation)
+            if conversation_item:
+                conversation_model.conversation.append(conversation_item)
+        else:
+            logger.info(f"Creating new conversation for user: {username}")
+            conversation = [] if conversation_item is None else [conversation_item]
+            conversation_model = ConversationModel(
+                username=username, conversation=conversation
+            )
+
+        updated_conversation_dict = conversation_model.model_dump()
+
+        await self.conversation_collection.update_one(
+            {"username": username},
+            {"$set": updated_conversation_dict},
+            upsert=True,
+            session=session,
+        )
+
+        return updated_conversation_dict
 
     async def get_conversation_by_username(
         self, username: str
     ) -> Optional[ConversationModel]:
-        """
-        Get the conversation history of a user
-
-        Args:
-            username: Username of the user whose conversation history to retrieve
-
-        Returns:
-            Optional[ConversationModel]: The conversation history, or None if not found
-        """
-        doc = await self.collection.find_one({"username": username})
-
-        if doc:
-            doc.pop("_id", None)
-            return ConversationModel(**doc)
-
+        logger.info(f"Fetching conversation for user: {username}")
+        conversation_document = await self.conversation_collection.find_one(
+            {"username": username}
+        )
+        if conversation_document:
+            conversation_document.pop("_id", None)
+            return ConversationModel(**conversation_document)
         return None
 
     async def delete_conversation_by_username(self, username: str) -> bool:
-        """
-        Delete all conversation items for a given username
-
-        Args:
-            username: Username of the user whose conversation history should be deleted
-
-        Returns:
-            bool: True if a conversation was deleted, False if no conversation was found
-        """
-        result = await self.collection.delete_one({"username": username})
-        return result.deleted_count > 0
+        logger.info(f"Attempting to delete conversation for user: {username}")
+        delete_result = await self.conversation_collection.delete_one(
+            {"username": username}
+        )
+        return delete_result.deleted_count > 0

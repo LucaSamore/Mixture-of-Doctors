@@ -1,0 +1,28 @@
+[project]
+name = "synthesizer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Roberto Mitugno", email = "roberto.mitugno@studio.unibo.it" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "dotenv>=0.9.9",
+    "fastapi>=0.115.11",
+    "groq>=0.22.0",
+    "kafka-python>=2.0.6",
+    "loguru>=0.7.3",
+    "ollama>=0.4.7",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "redis>=5.2.1",
+    "uvicorn>=0.34.0",
+]
+
+[project.scripts]
+synthesizer = "synthesizer:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

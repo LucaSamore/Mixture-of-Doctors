@@ -15,8 +15,8 @@ frontend/cli/src/cli/username.txt
 # Init scripts
 init-scripts/
 
-# Environment variable files
 .env
 
-# Logging files
 *.log
+
+scripts/setup_envs.sh

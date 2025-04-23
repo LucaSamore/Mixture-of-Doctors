@@ -1,0 +1,32 @@
+[project]
+name = "orchestrator"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { email = "luca.samore.01@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "loguru>=0.7.3",
+    "redis>=5.2.1",
+    "fastapi[standard]>=0.115.11",
+    "kafka-python>=2.0.6",
+    "ollama>=0.4.7",
+    "groq>=0.20.0",
+    "python-dotenv>=1.0.1",
+]
+
+[project.scripts]
+orchestrator = "orchestrator:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.25.3",
+    "pytest-mock>=3.14.0",
+]
