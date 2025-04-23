@@ -138,8 +138,6 @@ def display_chat_history(username: str):
         for i, item in enumerate(history.conversation):
             typer.echo(f"\n{username.title()}: {item.question}")
             typer.echo(f"Virtual Doctor: {item.answer}")
-    else:
-        typer.echo("No chat history found or unable to retrieve chat history.")
 
 
 def print_help_message():
