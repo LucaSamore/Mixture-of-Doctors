@@ -80,6 +80,14 @@ for domain in $DOMAINS; do
     remove_stack "rag-$domain"
 done
 
+# Check if username.txt file exists in frontend/cli/src/cli and delete it
+USERNAME_FILE="frontend/cli/src/cli/username.txt"
+if [ -f "$USERNAME_FILE" ]; then
+    echo -e "${YELLOW}\nRemoving username.txt file from CLI...${NC}"
+    rm -f "$USERNAME_FILE"
+    echo -e "${GREEN}username.txt removed successfully${NC}"
+fi
+
 # If --volumes flag is used, prune volumes
 if [ "$REMOVE_VOLUMES" = true ]; then
     echo -e "${YELLOW}\nPruning all volumes...${NC}"
