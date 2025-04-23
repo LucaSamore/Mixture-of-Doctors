@@ -8,38 +8,38 @@ from src.rag_module.rag_process import (
     prepare_prompt,
     fetch_chat_history_for_user,
 )
-from qdrant_client.http.models import ScoredPoint
+from qdrant_client.http.models import QueryResponse, ScoredPoint
 
 
 class TestRagProcess:
-    @patch("src.rag_module.rag_process.SentenceTransformer")
-    def test_retrieve(self, mock_transformer, mock_qdrant_client):
-        mock_model = MagicMock()
-        mock_model.encode.return_value = np.array([0.1, 0.2, 0.3])
-        mock_transformer.return_value = mock_model
+    @pytest.mark.asyncio
+    @patch("src.rag_module.rag_process.embedding_model")
+    @patch("src.rag_module.rag_process.qdrant_client")
+    async def test_retrieve(self, mock_qdrant_client, mock_embedding_model):
+        mock_embedding_model.encode.return_value = np.array([0.1, 0.2, 0.3])
 
         payload1 = {"title": "Doc 1", "source": "source1", "text": "Test content 1"}
         payload2 = {"title": "Doc 2", "source": "source2", "text": "Test content 2"}
 
-        mock_hit1 = ScoredPoint(
-            id=1, score=0.9, payload=payload1, vector=None, version=1
-        )
-        mock_hit2 = ScoredPoint(
-            id=2, score=0.8, payload=payload2, vector=None, version=1
-        )
+        mock_point1 = MagicMock(spec=ScoredPoint)
+        mock_point1.payload = payload1
 
-        with patch("src.rag_module.rag_process.qdrant_client", mock_qdrant_client):
-            mock_qdrant_client.search.return_value = [mock_hit1, mock_hit2]
+        mock_point2 = MagicMock(spec=ScoredPoint)
+        mock_point2.payload = payload2
 
-            query = "Test query"
-            results = retrieve(query)
+        mock_query_response = QueryResponse(points=[mock_point1, mock_point2])
 
-            mock_model.encode.assert_called_once_with(query)
-            mock_qdrant_client.search.assert_called_once()
+        mock_qdrant_client.query_points = AsyncMock(return_value=mock_query_response)
 
-            assert len(results) == 2
-            assert results[0] == payload1
-            assert results[1] == payload2
+        query = "Test query"
+        results = await retrieve(query)
+
+        mock_embedding_model.encode.assert_called_once_with(query)
+        mock_qdrant_client.query_points.assert_awaited_once()
+
+        assert len(results) == 2
+        assert results[0] == payload1
+        assert results[1] == payload2
 
     @pytest.mark.asyncio
     async def test_augment(self, sample_conversation_items):
@@ -116,15 +116,17 @@ class TestRagProcess:
             assert mock_client.called
             assert len(result) == len(sample_conversation_items)
 
+    @pytest.mark.asyncio
     @patch("src.rag_module.rag_process.llm_groq_client")
     @patch("src.rag_module.rag_process.redis_client")
-    def test_generate_direct_to_redis(
+    async def test_generate_direct_to_redis(
         self, mock_redis_client, mock_groq_client, sample_rag_message
     ):
         incoming_message = sample_rag_message
         incoming_message.total = 1
 
-        mock_stream = []
+        mock_stream = AsyncMock()
+
         mock_chunk1 = MagicMock()
         mock_chunk1.choices = [MagicMock()]
         mock_chunk1.choices[0].delta.content = "The first symptom of sclerosis"
@@ -135,15 +137,14 @@ class TestRagProcess:
         mock_chunk2.choices[0].delta.content = " multiple is often optic neuritis"
         mock_chunk2.choices[0].finish_reason = "stop"
 
-        mock_stream.append(mock_chunk1)
-        mock_stream.append(mock_chunk2)
+        mock_stream.__aiter__.return_value = [mock_chunk1, mock_chunk2].__iter__()
 
-        mock_groq_client.chat.completions.create.return_value = mock_stream
+        mock_groq_client.chat.completions.create = AsyncMock(return_value=mock_stream)
 
         prompt = "System prompt"
-        generate(prompt, incoming_message)
+        await generate(prompt, incoming_message)
 
-        mock_groq_client.chat.completions.create.assert_called_once_with(
+        mock_groq_client.chat.completions.create.assert_awaited_once_with(
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": incoming_message.rag_query},
@@ -172,30 +173,34 @@ class TestRagProcess:
             },
         )
 
+    @pytest.mark.asyncio
     @patch("src.rag_module.rag_process.llm_groq_client")
     @patch("src.rag_module.rag_process.kafka_client")
-    def test_generate_to_kafka(
+    async def test_generate_to_kafka(
         self, mock_kafka_client, mock_groq_client, sample_rag_message
     ):
         incoming_message = sample_rag_message
         incoming_message.total = 5
 
-        mock_stream = MagicMock()
+        mock_completion = MagicMock()
 
-        mock_groq_client.chat.completions.create.return_value = mock_stream
+        mock_groq_client.chat.completions.create = AsyncMock(
+            return_value=mock_completion
+        )
 
         prompt = "System prompt with context"
-        generate(prompt, incoming_message)
+        await generate(prompt, incoming_message)
 
-        mock_groq_client.chat.completions.create.assert_called_once_with(
+        mock_groq_client.chat.completions.create.assert_awaited_once_with(
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": incoming_message.rag_query},
             ],
             model="llama-3.3-70b-versatile",
-            stream=True,
+            max_completion_tokens=1024,
+            stream=False,
         )
 
         mock_kafka_client.send_message_to_queue.assert_called_once_with(
-            mock_stream, incoming_message
+            mock_completion, incoming_message
         )

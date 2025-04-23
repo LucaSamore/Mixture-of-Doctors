@@ -3,7 +3,7 @@ FROM python:3.13-slim
 WORKDIR /app
 
 COPY rag-module/ingestion/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 COPY rag-module/ingestion/ingest_pubmed.py ./ingest_pubmed.py
 COPY config.json ../../config.json
