@@ -4,7 +4,7 @@ from groq import AsyncGroq
 from loguru import logger
 from pydantic import BaseModel
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.http.models import Payload
+from qdrant_client.http.models import ScoredPoint, QueryResponse
 from sentence_transformers import SentenceTransformer
 from typing import List, TypeAlias
 import asyncio
@@ -15,12 +15,33 @@ import string
 import json
 
 
+# Custom JSON encoder to handle datetime objects
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, datetime):
+            return o.isoformat()
+        return super().default(o)
+
+
 PROMPT_FILE = "/app/prompts/rag_module.md"
 DOMAIN = os.getenv("RAG_DOMAIN")
 CHAT_HISTORY_URL = os.getenv("CHAT_HISTORY_URL")
 
 Query: TypeAlias = str
 Prompt: TypeAlias = str
+
+
+class ConversationItem(BaseModel):
+    question: str
+    answer: str
+    timestamp: datetime = datetime.now()
+
+
+class ConversationModel(BaseModel):
+    username: str
+    created_at: datetime
+    conversation: List[ConversationItem]
+
 
 kafka_client = KafkaClient()
 
@@ -36,92 +57,7 @@ redis_client = redis.Redis(
     decode_responses=True,
 )
 
-
-class ConversationItem(BaseModel):
-    question: str
-    answer: str
-    timestamp: datetime = datetime.now()
-
-
-class ConversationModel(BaseModel):
-    username: str
-    created_at: datetime
-    conversation: List[ConversationItem]
-
-
-async def handle_incoming_message() -> None:
-    message = kafka_client.get_message_from_queue()
-    if message is not None:
-        logger.info(f"Received message: {message}")
-        context = await retrieve(message.rag_query)
-        prompt = await augment(context, message.rag_query, message.user_id)
-        await generate(prompt, message)
-
-
-async def retrieve(query: Query) -> List[Payload]:
-    logger.info(f"Retrieving context for query: {query}")
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    query_vector = model.encode(query).tolist()
-    logger.info("Doing vector search...")
-    hits = await qdrant_client.search(
-        collection_name=f"{DOMAIN}_docs", query_vector=query_vector, limit=5
-    )
-    logger.info(f"Hits: {hits}")
-    return [hit.payload for hit in hits if hit.payload is not None]
-
-
-async def augment(embeddings: List[Payload], query: Query, user_id: str) -> Prompt:
-    conversation = await fetch_chat_history_for_user(user_id)
-    context = json.dumps([item.model_dump_json() for item in conversation], indent=4)
-    logger.info(f"Context: {context}")
-    extracted_embeddings = [
-        {
-            "title": payload.get("title"),
-            "source": payload.get("source"),
-            "text": payload.get("text"),
-        }
-        for payload in embeddings
-    ]
-    embeddings_context = json.dumps(extracted_embeddings, indent=4)
-    logger.info(f"Embeddings Context: {embeddings_context}")
-    combined_context = f"Chat History:\n{context}\n\nEmbeddings:\n{embeddings_context}"
-    params = {"query": query, "context": combined_context}
-    return prepare_prompt(template=PROMPT_FILE, **params)
-
-
-async def generate(prompt: Prompt, incoming_message: RAGModuleMessage) -> None:
-    logger.info(f"Generating response for query:\n{incoming_message}")
-    # ! TODO: refactor this function
-    if incoming_message.total == 1:
-        stream = await llm_groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": incoming_message.rag_query},
-            ],
-            model="llama-3.3-70b-versatile",
-            stream=True,
-        )
-        async for chunk in stream:
-            content = chunk.choices[0].delta.content
-            redis_client.xadd(
-                name=incoming_message.user_id,
-                fields={
-                    "query": incoming_message.original_query,  # TODO: check it
-                    "response": str(content),
-                    "done": str(chunk.choices[0].finish_reason),
-                },
-            )
-    else:
-        chat_completion = await llm_groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": incoming_message.rag_query},
-            ],
-            model="llama-3.3-70b-versatile",
-            max_completion_tokens=1024,
-            stream=False,
-        )
-        kafka_client.send_message_to_queue(chat_completion, incoming_message)
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 def prepare_prompt(template: str, **kwargs) -> str:
@@ -132,26 +68,143 @@ def prepare_prompt(template: str, **kwargs) -> str:
 
 async def fetch_chat_history_for_user(user_id: str) -> List[ConversationItem]:
     logger.info(f"Fetching chat history for user: {user_id}")
-    async with httpx.AsyncClient() as client:
-        response = await client.get(f"{CHAT_HISTORY_URL}/{user_id}")
-        response.raise_for_status()
-        model = ConversationModel.model_validate(response.json())
-        logger.info("Chat history fetched successfully")
-    return model.conversation
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{CHAT_HISTORY_URL}/{user_id}")
+            response.raise_for_status()
+            model = ConversationModel.model_validate(response.json())
+            logger.info("Chat history fetched successfully")
+            return model.conversation
+    except httpx.HTTPError as e:
+        logger.error(f"HTTP error while fetching chat history: {e}")
+        return []
 
 
-async def main_loop():
-    logger.info(f"Starting RAG process for domain: {DOMAIN}")
+async def retrieve(query: Query) -> List[dict]:
+    logger.info(f"Retrieving context for query: {query}")
+    query_vector = embedding_model.encode(query).tolist()
+    logger.info("Doing vector search...")
+    search_result = await qdrant_client.query_points(
+        collection_name=f"{DOMAIN}_docs", query=query_vector, limit=5
+    )
+
+    logger.info(f"Retrieved search results: {search_result}")
+
+    results = []
+    if isinstance(search_result, QueryResponse) and hasattr(search_result, "points"):
+        scored_points = search_result.points
+
+        for point in scored_points:
+            if isinstance(point, ScoredPoint) and hasattr(point, "payload"):
+                results.append(point.payload)
+            else:
+                logger.warning(f"Skipping point without payload: {point}")
+
+        logger.info(f"Extracted {len(results)} payloads from search results")
+    else:
+        logger.warning(f"Unexpected search_result format: {search_result}")
+
+    return results
+
+
+async def augment(embeddings: List[dict], query: Query, user_id: str) -> Prompt:
+    conversation = await fetch_chat_history_for_user(user_id)
+
+    conversation_data = [item.model_dump() for item in conversation]
+    context = json.dumps(conversation_data, indent=4, cls=DateTimeEncoder)
+    logger.info(f"Context: {context}")
+
+    extracted_embeddings = []
+    for payload in embeddings:
+        if isinstance(payload, dict):
+            extracted_embeddings.append(
+                {
+                    "title": payload.get("title", ""),
+                    "source": payload.get("source", ""),
+                    "text": payload.get("text", ""),
+                }
+            )
+        else:
+            logger.warning(f"Skipping payload with unexpected type: {type(payload)}")
+
+    embeddings_context = json.dumps(extracted_embeddings, indent=4, cls=DateTimeEncoder)
+    logger.info(f"Embeddings Context: {embeddings_context}")
+
+    combined_context = f"Chat History:\n{context}\n\nEmbeddings:\n{embeddings_context}"
+    params = {"query": query, "context": combined_context}
+    return prepare_prompt(template=PROMPT_FILE, **params)
+
+
+async def handle_stream_response(
+    prompt: Prompt, incoming_message: RAGModuleMessage
+) -> None:
+    stream = await llm_groq_client.chat.completions.create(
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": incoming_message.rag_query},
+        ],
+        model="llama-3.3-70b-versatile",
+        stream=True,
+    )
+    async for chunk in stream:
+        content = chunk.choices[0].delta.content
+        redis_client.xadd(
+            name=incoming_message.user_id,
+            fields={
+                "query": incoming_message.original_query,  # TODO: check it
+                "response": str(content),
+                "done": str(chunk.choices[0].finish_reason),
+            },
+        )
+
+
+async def handle_batch_response(
+    prompt: Prompt, incoming_message: RAGModuleMessage
+) -> None:
+    chat_completion = await llm_groq_client.chat.completions.create(
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": incoming_message.rag_query},
+        ],
+        model="llama-3.3-70b-versatile",
+        max_completion_tokens=1024,
+        stream=False,
+    )
+    kafka_client.send_message_to_queue(chat_completion, incoming_message)
+
+
+async def generate(prompt: Prompt, incoming_message: RAGModuleMessage) -> None:
+    logger.info(f"Generating response for query:\n{incoming_message}")
+
+    if incoming_message.total == 1:
+        await handle_stream_response(prompt, incoming_message)
+    else:
+        await handle_batch_response(prompt, incoming_message)
+
+
+async def handle_incoming_message() -> None:
+    message = kafka_client.get_message_from_queue()
+    if message is not None:
+        logger.info(f"Received message: {message}")
+        try:
+            context = await retrieve(message.rag_query)
+            prompt = await augment(context, message.rag_query, message.user_id)
+            await generate(prompt, message)
+        except Exception as e:
+            logger.error(f"Error processing message: {e}")
+
+
+async def main():
+    logger.info(f"RAG process initialized with domain: {DOMAIN}")
     logger.info("Waiting for incoming messages...")
     while True:
         try:
             await handle_incoming_message()
             await asyncio.sleep(0.1)
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
+            logger.error(f"Error in main processing loop: {e}")
             await asyncio.sleep(1)
 
 
 if __name__ == "__main__":
-    logger.info(f"RAG process initialized with domain: {DOMAIN}")
-    asyncio.run(main_loop())
+    asyncio.run(main())
