@@ -63,9 +63,8 @@ class KafkaClient:
             logger.error("KAFKA_BROKER environment variable not set")
             raise ValueError("KAFKA_BROKER environment variable not set")
 
-        # Use custom encoder for JSON serialization that can handle datetime objects
         def value_serializer(v):
-            from rag_module.rag_process import DateTimeEncoder
+            from .utilities import DateTimeEncoder
 
             return json.dumps(v, cls=DateTimeEncoder).encode("utf-8")
 

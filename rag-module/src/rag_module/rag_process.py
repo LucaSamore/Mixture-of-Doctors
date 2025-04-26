@@ -1,8 +1,12 @@
 from .kafka_client import KafkaClient, RAGModuleMessage
-from datetime import datetime
+from .utilities import (
+    DateTimeEncoder,
+    ConversationItem,
+    ConversationModel,
+    prepare_prompt,
+)
 from groq import AsyncGroq
 from loguru import logger
-from pydantic import BaseModel
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.models import ScoredPoint, QueryResponse
 from sentence_transformers import SentenceTransformer
@@ -11,16 +15,7 @@ import asyncio
 import httpx
 import os
 import redis
-import string
 import json
-
-
-# Custom JSON encoder to handle datetime objects
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, datetime):
-            return o.isoformat()
-        return super().default(o)
 
 
 PROMPT_FILE = "/app/prompts/rag_module.md"
@@ -29,18 +24,6 @@ CHAT_HISTORY_URL = os.getenv("CHAT_HISTORY_URL")
 
 Query: TypeAlias = str
 Prompt: TypeAlias = str
-
-
-class ConversationItem(BaseModel):
-    question: str
-    answer: str
-    timestamp: datetime = datetime.now()
-
-
-class ConversationModel(BaseModel):
-    username: str
-    created_at: datetime
-    conversation: List[ConversationItem]
 
 
 kafka_client = KafkaClient()
@@ -58,12 +41,6 @@ redis_client = redis.Redis(
 )
 
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-
-def prepare_prompt(template: str, **kwargs) -> str:
-    with open(template, "r") as f:
-        content = f.read()
-    return string.Template(content).substitute(kwargs)
 
 
 async def fetch_chat_history_for_user(user_id: str) -> List[ConversationItem]:
