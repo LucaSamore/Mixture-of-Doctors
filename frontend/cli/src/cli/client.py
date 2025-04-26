@@ -3,7 +3,10 @@ from typer import Option
 from cli.stream_client import StreamClient
 from cli import write_username_to_file, read_username_from_file
 from cli.chat_history_client import ChatHistoryClient
+from cli.typer_config import set_usage_command
 import os
+
+set_usage_command("docker exec mod-cli python -m cli.client mod")
 
 app = typer.Typer()
 chat_history_client = ChatHistoryClient()
