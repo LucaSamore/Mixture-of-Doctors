@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import List
 import httpx
 import json
-
+import uuid
 
 REASONING_ATTEMPTS = 5
 
@@ -58,6 +58,7 @@ class ReasoningOutcome(BaseModel):
 
 class RAGModuleMessage(BaseModel):
     user_id: str
+    query_id: str
     original_query: str
     rag_query: str
     stream: bool
@@ -66,10 +67,16 @@ class RAGModuleMessage(BaseModel):
 
 
 def create_rag_module_message(
-    chatbot_query: ChatbotQuery, rag_query: str, stream: bool, number: int, total: int
+    chatbot_query: ChatbotQuery,
+    query_id: str,
+    rag_query: str,
+    stream: bool,
+    number: int,
+    total: int,
 ) -> RAGModuleMessage:
     return RAGModuleMessage(
         user_id=chatbot_query.user_id,
+        query_id=query_id,
         original_query=chatbot_query.query,
         rag_query=rag_query,
         stream=stream,
@@ -118,8 +125,9 @@ async def answer(chatbot_query: ChatbotQuery) -> None:
 
 
 async def ask_single_doctor(chatbot_query: ChatbotQuery, disease: str) -> None:
+    query_id = str(uuid.uuid4())
     msg = create_rag_module_message(
-        chatbot_query, chatbot_query.query, stream=True, number=1, total=1
+        chatbot_query, query_id, chatbot_query.query, stream=True, number=1, total=1
     )
     topic = f"rag-module-{disease}"
     logger.info(f"Sending message to {topic}: {msg.model_dump_json(indent=4)}")
@@ -129,10 +137,16 @@ async def ask_single_doctor(chatbot_query: ChatbotQuery, disease: str) -> None:
 async def ask_many_doctors(
     chatbot_query: ChatbotQuery, questions: List[DiseaseSpecificQuestion]
 ) -> None:
+    query_id = str(uuid.uuid4())
     for i, dsq in enumerate(questions, start=1):
         topic = f"rag-module-{dsq.disease}"
         msg = create_rag_module_message(
-            chatbot_query, dsq.question, stream=False, number=i, total=len(diseases) - 1
+            chatbot_query,
+            query_id,
+            dsq.question,
+            stream=False,
+            number=i,
+            total=len(questions),
         )
         logger.info(f"Sending message to {topic}: {msg.model_dump_json(indent=4)}")
         kafka_producer.send(topic=topic, value=msg.model_dump())

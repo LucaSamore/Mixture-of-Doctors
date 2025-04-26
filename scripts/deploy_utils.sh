@@ -89,15 +89,17 @@ deploy_rag_services() {
     
     # Change to the rag-module directory where docker-compose.yml is located
     cd "$rag_module_dir"
+
+    # Load environment variables if .env exists
+    if [ -f ".env" ]; then
+        set -a
+        source .env
+        set +a
+    fi
     
     # Build the RAG module image once (will be used by all domains)
     echo -e "${YELLOW}Building RAG module image...${NC}"
     docker build -t mixture-of-doctors/rag-module:latest .
-    
-    # Base port for REST API (will be incremented for each domain)
-    BASE_REST_PORT=6333
-    # Base port for gRPC API (will be incremented for each domain)
-    BASE_GRPC_PORT=6334
     
     # Loop through domains and start a RAG container for each with its own Qdrant
     domain_index=0
@@ -105,17 +107,19 @@ deploy_rag_services() {
         echo -e "${YELLOW}Starting RAG module with domain: $domain${NC}"
         
         # Calculate ports for this domain (incrementing by 10 to avoid conflicts)
-        QDRANT_REST_PORT=$((BASE_REST_PORT + (domain_index * 10)))
-        QDRANT_GRPC_PORT=$((BASE_GRPC_PORT + (domain_index * 10)))
+        QDRANT_REST_PORT=$(($QDRANT_BASE_REST_PORT + (domain_index * 10)))
+        QDRANT_GRPC_PORT=$(($QDRANT_BASE_GRPC_PORT + (domain_index * 10)))
         
         # Define unique stack name for each domain
         stack_name="rag-$domain"
         
         # Export environment variables for docker-compose
         export RAG_DOMAIN=$domain
+        export QDRANT_HOST="${stack_name}_qdrant"
+        export QDRANT_PORT=$QDRANT_BASE_REST_PORT
         export QDRANT_REST_PORT=$QDRANT_REST_PORT
         export QDRANT_GRPC_PORT=$QDRANT_GRPC_PORT
-        
+
         # Process docker-compose with environment variables
         envsubst < docker-compose.yml > docker-compose-processed.yml
         
