@@ -31,6 +31,7 @@ def mock_kafka_client():
 def sample_rag_message():
     return RAGModuleMessage(
         user_id="test_user_123",
+        query_id="test_query_id_456",
         original_query="What are the symptoms of multiple sclerosis?",
         rag_query="Symptoms of multiple sclerosis",
         stream=True,
@@ -43,6 +44,7 @@ def sample_rag_message():
 def sample_synthesizer_message(sample_rag_message):
     return SynthesizerMessage(
         user_id=sample_rag_message.user_id,
+        query_id=sample_rag_message.query_id,
         disease="neurological",
         original_query=sample_rag_message.original_query,
         response="Symptoms of multiple sclerosis include...",

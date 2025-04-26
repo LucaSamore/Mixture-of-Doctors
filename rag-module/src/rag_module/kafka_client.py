@@ -1,11 +1,10 @@
 from kafka import KafkaConsumer, KafkaProducer
-import os
-import json
 from pydantic import BaseModel
 from loguru import logger
 from typing import TypeAlias, Optional
-import uuid
 from dotenv import load_dotenv
+import os
+import json
 
 load_dotenv()
 
@@ -18,6 +17,7 @@ DOMAIN = os.environ.get("RAG_DOMAIN", "")
 
 class RAGModuleMessage(BaseModel):
     user_id: str
+    query_id: str
     original_query: str
     rag_query: str
     stream: bool
@@ -27,6 +27,7 @@ class RAGModuleMessage(BaseModel):
 
 class SynthesizerMessage(BaseModel):
     user_id: str
+    query_id: str
     disease: str
     original_query: str
     response: str
@@ -106,14 +107,14 @@ class KafkaClient:
             )
             logger.info(f"Synthesizer message: {synthesizer_message}")
 
-            query_id = str(uuid.uuid4())
-
             self.producer.send(
                 topic=SYNTHESIZER_TOPIC,
-                key=query_id,
+                key=incoming_message.query_id,
                 value=synthesizer_message.model_dump(),
             )
-            logger.info(f"Message sent to synthesizer topic with query_id: {query_id}")
+            logger.info(
+                f"Message sent to synthesizer topic with query_id: {incoming_message.query_id}"
+            )
         except Exception as e:
             logger.error(f"Error sending message to Kafka: {str(e)}")
             raise
@@ -123,6 +124,7 @@ class KafkaClient:
     ) -> SynthesizerMessage:
         return SynthesizerMessage(
             user_id=incoming_message.user_id,
+            query_id=incoming_message.query_id,
             disease=DOMAIN,
             original_query=incoming_message.original_query,
             response=response,
