@@ -6,6 +6,13 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Check current directory and change to root if needed
+CURRENT_DIR=$(basename "$PWD")
+if [ "$CURRENT_DIR" = "scripts" ]; then
+    cd ..
+    echo -e "${GREEN}Changed directory to project root${NC}"
+fi
+
 # Import utility functions
 source scripts/deploy_utils.sh
 

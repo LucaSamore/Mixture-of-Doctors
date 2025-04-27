@@ -48,10 +48,6 @@ class KafkaClient:
         self._setup_producer()
 
     def _setup_consumer(self) -> None:
-        if not KAFKA_BROKER:
-            logger.error("KAFKA_BROKER environment variable not set")
-            raise ValueError("KAFKA_BROKER environment variable not set")
-
         self.consumer = KafkaConsumer(
             bootstrap_servers=KAFKA_BROKER,
             value_deserializer=lambda v: json.loads(v.decode("utf-8")),
@@ -60,10 +56,6 @@ class KafkaClient:
         logger.info(f"Kafka consumer subscribed to topic: {self.topic}")
 
     def _setup_producer(self) -> None:
-        if not KAFKA_BROKER:
-            logger.error("KAFKA_BROKER environment variable not set")
-            raise ValueError("KAFKA_BROKER environment variable not set")
-
         def value_serializer(v):
             from .utilities import DateTimeEncoder
 

@@ -2,6 +2,13 @@
 
 set -e
 
+# Check current directory and change to root if needed
+CURRENT_DIR=$(basename "$PWD")
+if [ "$CURRENT_DIR" = "scripts" ]; then
+    cd ..
+    echo "Changed directory to project root"
+fi
+
 # Include utility functions
 source ./scripts/deploy_utils.sh
 
