@@ -27,7 +27,9 @@ class TestIntegrationFlow:
     ):
         """Test full flow from receiving responses to synthesis to streaming"""
         mock_prepare_prompt.return_value = "Formatted prompt"
-        mock_llm_generate.return_value = mock_llm_response_stream
+        mock_llm_generate.return_value = (
+            await mock_llm_response_stream()
+        )  # Use the result of calling the mock
 
         # First response
         await handle_response(sample_rag_response)
@@ -56,7 +58,7 @@ class TestIntegrationFlow:
         await send_response(
             second_response.user_id,
             second_response.original_query,
-            mock_llm_response_stream,
+            await mock_llm_response_stream(),
         )
 
         assert mock_redis_stream.call_count == 2

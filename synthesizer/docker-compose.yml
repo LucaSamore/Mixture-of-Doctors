@@ -5,14 +5,13 @@ services:
       dockerfile: Dockerfile
     image: mod/synthesizer:latest
     ports:
-      - "7000"
+      - "7000:7000"
     environment:
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
-    networks:
-      - mod-network
+      - KAFKA_BROKER=${KAFKA_BROKER}
+      - GROQ_API_KEY=${GROQ_API_KEY}
     deploy:
       replicas: 3
       restart_policy:
@@ -20,13 +19,8 @@ services:
         delay: 5s
         max_attempts: 3
         window: 60s
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
 networks:
-  mod-network:
+  default:
     name: mod-network
     external: true

@@ -2,6 +2,13 @@
 
 set -e
 
+# Check current directory and change to root if needed
+CURRENT_DIR=$(basename "$PWD")
+if [ "$CURRENT_DIR" = "scripts" ]; then
+    cd ..
+    echo "Changed directory to project root"
+fi
+
 # Include utility functions
 source ./scripts/deploy_utils.sh
 
@@ -134,6 +141,13 @@ deploy_service "chat-history" "chat-history" "mod/chat-history:latest"
 echo -e "${GREEN}Waiting for message broker other 20 seconds... ${NC}"
 sleep 20
 
+# Deploy Synthesizer with Docker Swarm
+echo -e "${YELLOW}=== Deploying Synthesizer ===${NC}"
+deploy_service "synthesizer" "synthesizer" "mod/synthesizer:latest"
+echo -e "${GREEN}Synthesizer deployment completed.${NC}"
+
+sleep 20
+
 # Deploy Orchestrator with Docker Swarm
 deploy_service "orchestrator" "orchestrator" "mod/orchestrator:latest"
 
@@ -152,15 +166,15 @@ else
     echo -e "${YELLOW}Skipping data ingestion. To run ingestion, use './deploy.sh --ingest'${NC}"
 fi
 
+# Deploy Nginx reverse proxy
+echo -e "${YELLOW}=== Deploying Nginx reverse proxy ===${NC}"
+deploy_service "nginx" "infrastructure/nginx" ""
+echo -e "${GREEN}Nginx deployment completed.${NC}"
+
 echo -e "${GREEN}Deployment script finished.${NC}"
 echo -e "${YELLOW}To stop all services run: ${NC}./undeploy.sh"
 echo -e "${YELLOW}To view Docker Swarm services: ${NC}docker service ls"
 echo -e "${YELLOW}To view logs for a service: ${NC}docker service logs <service_name>"
-
-# Optionally show CLI help
-if command -v uv &> /dev/null; then
-    uv run frontend/cli/src/cli/client.py mod --help
-fi
 
 # Check deployment status of all services
 echo -e "${YELLOW}Checking deployment status of all stacks...${NC}"
@@ -172,9 +186,11 @@ docker service ls
 
 echo -e "${GREEN}All services deployed successfully!${NC}"
 echo -e "${GREEN}=== Access Information ===${NC}"
+echo -e "Nginx Gateway: http://localhost:8086"
 echo -e "Kafka UI: http://localhost:8080"
 echo -e "MongoDB UI: http://localhost:8081"
 echo -e "Orchestrator: http://localhost:8082/docs"
+echo -e "Synthesizer: http://localhost:7000"
 echo -e "Chat History API: http://localhost:8089"
 echo -e "Redis UI: http://localhost:5540"
 echo -e "Qdrant Dashboards:"
@@ -188,3 +204,8 @@ cat frontend/cli/src/cli/.env 2>/dev/null || echo "No .env file found for CLI"
 
 echo
 echo -e "${YELLOW}Make sure the above configuration is correct for your environment.${NC}"
+
+# Optionally show CLI help
+if command -v uv &> /dev/null; then
+    uv run frontend/cli/src/cli/client.py mod --help
+fi

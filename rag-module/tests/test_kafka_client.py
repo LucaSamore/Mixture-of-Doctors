@@ -21,9 +21,7 @@ class TestKafkaClient:
 
     def test_get_message_from_queue(self, mock_kafka_client, sample_rag_message):
         mock_kafka_client.consumer.poll = MagicMock(
-            return_value={
-                "topic": [MagicMock(value=sample_rag_message.model_dump_json())]
-            }
+            return_value={"topic": [MagicMock(value=sample_rag_message.model_dump())]}
         )
         original_method = KafkaClient.get_message_from_queue
         mock_kafka_client.get_message_from_queue = lambda: original_method(
@@ -31,7 +29,7 @@ class TestKafkaClient:
         )
 
         message_mock = MagicMock()
-        message_mock.value = sample_rag_message.model_dump_json()
+        message_mock.value = sample_rag_message.model_dump()
         mock_kafka_client.consumer.__iter__ = MagicMock(
             return_value=iter([message_mock])
         )

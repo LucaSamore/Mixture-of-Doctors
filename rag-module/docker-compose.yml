@@ -3,14 +3,18 @@ services:
     image: mixture-of-doctors/rag-module:latest
     environment:
       - PORT=${RAG_SERVICE_PORT}
-      - RAG_DOMAIN=${RAG_DOMAIN:-${RAG_DEFAULT_DOMAIN}}
+      - RAG_DOMAIN=${RAG_DOMAIN}
       - GROQ_API_KEY=${GROQ_API_KEY}
       - QDRANT_HOST=${QDRANT_HOST}
       - QDRANT_PORT=${QDRANT_PORT}
       - KAFKA_BROKER=${KAFKA_BROKER}
       - KAFKA_PRODUCER_TOPIC=${KAFKA_PRODUCER_TOPIC}
+      - CHAT_HISTORY_URL=${CHAT_HISTORY_URL}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     volumes:
-      - ../../config.json:/app/config.json
+      - ../config.json:/app/config.json
     depends_on:
       - qdrant
     deploy:

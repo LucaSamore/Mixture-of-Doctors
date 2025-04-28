@@ -86,17 +86,21 @@ class TestRagModuleInteractions:
         """Test sending a query to a single RAG module."""
         disease = "diabetes"
         with patch("src.orchestrator.planning.kafka_producer", mock_kafka_producer):
-            await ask_single_doctor(sample_chatbot_query, disease)
-            mock_kafka_producer.send.assert_called_once()
-            call_args = mock_kafka_producer.send.call_args
-            assert call_args[1]["topic"] == "rag-module-diabetes"
-            message_value = call_args[1]["value"]
-            assert message_value["user_id"] == sample_chatbot_query.user_id
-            assert message_value["original_query"] == sample_chatbot_query.query
-            assert message_value["rag_query"] == sample_chatbot_query.query
-            assert message_value["stream"] is True
-            assert message_value["number"] == 1
-            assert message_value["total"] == 1
+            with patch(
+                "src.orchestrator.planning.uuid.uuid4", return_value="test-uuid"
+            ):
+                await ask_single_doctor(sample_chatbot_query, disease)
+                mock_kafka_producer.send.assert_called_once()
+                call_args = mock_kafka_producer.send.call_args
+                assert call_args[1]["topic"] == "rag-module-diabetes"
+                message_value = call_args[1]["value"]
+                assert message_value["user_id"] == sample_chatbot_query.user_id
+                assert message_value["query_id"] == "test-uuid"
+                assert message_value["original_query"] == sample_chatbot_query.query
+                assert message_value["rag_query"] == sample_chatbot_query.query
+                assert message_value["stream"] is True
+                assert message_value["number"] == 1
+                assert message_value["total"] == 1
 
     @pytest.mark.asyncio
     @patch("src.orchestrator.planning.len")
@@ -112,22 +116,27 @@ class TestRagModuleInteractions:
             ),
         ]
         with patch("src.orchestrator.planning.kafka_producer", mock_kafka_producer):
-            await ask_many_doctors(sample_chatbot_query, disease_questions)
-            assert mock_kafka_producer.send.call_count == 2
-            # Check first call (diabetes)
-            first_call_args = mock_kafka_producer.send.call_args_list[0]
-            assert first_call_args[1]["topic"] == "rag-module-diabetes"
-            message1 = first_call_args[1]["value"]
-            assert message1["user_id"] == sample_chatbot_query.user_id
-            assert message1["rag_query"] == "About diabetes"
-            assert message1["stream"] is False
-            assert message1["number"] == 1
-            assert message1["total"] == 2  # len(diseases) - 1
-            # Check second call (hypertension)
-            second_call_args = mock_kafka_producer.send.call_args_list[1]
-            assert second_call_args[1]["topic"] == "rag-module-hypertension"
-            message2 = second_call_args[1]["value"]
-            assert message2["user_id"] == sample_chatbot_query.user_id
-            assert message2["rag_query"] == "About hypertension"
-            assert message2["number"] == 2
-            assert message2["total"] == 2  # len(diseases) - 1
+            with patch(
+                "src.orchestrator.planning.uuid.uuid4", return_value="test-uuid"
+            ):
+                await ask_many_doctors(sample_chatbot_query, disease_questions)
+                assert mock_kafka_producer.send.call_count == 2
+                # Check first call (diabetes)
+                first_call_args = mock_kafka_producer.send.call_args_list[0]
+                assert first_call_args[1]["topic"] == "rag-module-diabetes"
+                message1 = first_call_args[1]["value"]
+                assert message1["user_id"] == sample_chatbot_query.user_id
+                assert message1["query_id"] == "test-uuid"
+                assert message1["rag_query"] == "About diabetes"
+                assert message1["stream"] is False
+                assert message1["number"] == 1
+                assert message1["total"] == 3
+                # Check second call (hypertension)
+                second_call_args = mock_kafka_producer.send.call_args_list[1]
+                assert second_call_args[1]["topic"] == "rag-module-hypertension"
+                message2 = second_call_args[1]["value"]
+                assert message2["user_id"] == sample_chatbot_query.user_id
+                assert message2["query_id"] == "test-uuid"
+                assert message2["rag_query"] == "About hypertension"
+                assert message2["number"] == 2
+                assert message2["total"] == 3

@@ -6,6 +6,13 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Check current directory and change to root if needed
+CURRENT_DIR=$(basename "$PWD")
+if [ "$CURRENT_DIR" = "scripts" ]; then
+    cd ..
+    echo -e "${GREEN}Changed directory to project root${NC}"
+fi
+
 # Import utility functions
 source scripts/deploy_utils.sh
 
@@ -26,7 +33,9 @@ fi
 echo -e "${YELLOW}=== Undeploying all Docker Swarm stacks ===${NC}"
 
 # Remove all stacks in reverse order of deployment
+remove_stack "nginx"
 remove_stack "orchestrator"
+remove_stack "synthesizer"
 remove_stack "chat-history" 
 remove_stack "redis"
 remove_stack "kafka"
@@ -78,11 +87,38 @@ for domain in $DOMAINS; do
     remove_stack "rag-$domain"
 done
 
+# Check if username.txt file exists in frontend/cli/src/cli and delete it
+USERNAME_FILE="frontend/cli/src/cli/username.txt"
+if [ -f "$USERNAME_FILE" ]; then
+    echo -e "${YELLOW}\nRemoving username.txt file from CLI...${NC}"
+    rm -f "$USERNAME_FILE"
+    echo -e "${GREEN}username.txt removed successfully${NC}"
+fi
+
 # If --volumes flag is used, prune volumes
 if [ "$REMOVE_VOLUMES" = true ]; then
-    echo -e "${YELLOW}\nPruning all unused volumes...${NC}"
+    echo -e "${YELLOW}\nPruning all volumes...${NC}"
+            
+    # Stop all containers first to release any volume locks
+    echo -e "${YELLOW}Stopping all running containers...${NC}"
+    if docker ps -q | grep -q .; then
+        docker stop $(docker ps -q)
+    fi
+    
+    # Get all volume names
+    VOLUMES=$(docker volume ls -q)
+    if [ -n "$VOLUMES" ]; then
+        for vol in $VOLUMES; do
+            echo -e "${YELLOW}Removing volume: $vol${NC}"
+            docker volume rm $vol --force 2>/dev/null || true
+            sleep 1
+        done
+    fi
+    
+    # Final pruning to catch anything left
     docker volume prune -f
-    echo -e "${GREEN}Volumes pruned${NC}"
+    
+    echo -e "${GREEN}Volumes cleanup completed${NC}"
 fi
 
 # Check if swarm network still exists and remove if not in use

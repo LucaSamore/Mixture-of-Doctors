@@ -68,7 +68,7 @@ jobs:
         run: cd chat-history && uv sync --all-packages
         
       - name: Run chat-history tests
-        run: cd chat-history && uv run -v pytest
+        run: cd chat-history && uv run pytest -v tests/
   
   test-frontend-cli:
     runs-on: ubuntu-latest
@@ -112,6 +112,8 @@ jobs:
         
   test-rag-module:
     runs-on: ubuntu-latest
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       
