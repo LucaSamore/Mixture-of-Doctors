@@ -14,7 +14,9 @@ load_dotenv()
 
 
 class KafkaClient:
-    def __init__(self, topic="synthesizer", group_id="group-synthesizer"):
+    def __init__(
+        self, topic=os.getenv("KAFKA_TOPIC"), group_id=os.getenv("KAFKA_CONSUMER_GROUP")
+    ):
         self.consumer = KafkaConsumer(
             bootstrap_servers=os.getenv("KAFKA_BROKER"),
             value_deserializer=lambda v: json.loads(v.decode("utf-8")),
@@ -22,20 +24,14 @@ class KafkaClient:
             enable_auto_commit=False,
             auto_offset_reset="earliest",
         )
-        logger.info(f"Kafka broker: {os.getenv('KAFKA_BROKER')} AYOOO!")
         self.consumer.subscribe([topic])
         logger.info(f"Kafka consumer initialized for topic: {topic}")
 
     def get_consumer(self) -> KafkaConsumer:
         return self.consumer
 
-    def commit(self) -> bool:
-        try:
-            self.consumer.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Error committing offsets: {e}")
-            return False
+    def commit(self) -> None:
+        self.consumer.commit()
 
     def close(self) -> None:
         self.consumer.close()
