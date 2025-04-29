@@ -25,6 +25,7 @@ diseases = get_diseases_from_config_file()
 class ChatbotQuery(BaseModel):
     user_id: str
     query: str
+    plain_text: bool = False
 
 
 class ConversationItem(BaseModel):
@@ -64,6 +65,7 @@ class RAGModuleMessage(BaseModel):
     stream: bool
     number: int
     total: int
+    plain_text: bool = False
 
 
 def create_rag_module_message(
@@ -82,6 +84,7 @@ def create_rag_module_message(
         stream=stream,
         number=number,
         total=total,
+        plain_text=chatbot_query.plain_text,
     )
 
 
@@ -165,7 +168,19 @@ async def generate_answer(
 ) -> None:
     context = json.dumps([item.model_dump_json() for item in conversation], indent=4)
     logger.info(f"Context: {context}")
-    params = {"query": chatbot_query.query, "context": context}
+
+    # Add format instructions based on plain_text flag
+    format_instructions = (
+        "Provide your response in plain text format without any Markdown formatting."
+        if chatbot_query.plain_text
+        else "Structure your answer with appropriate Markdown headings and sections for better readability."
+    )
+
+    params = {
+        "query": chatbot_query.query,
+        "context": context,
+        "format_instructions": format_instructions,
+    }
     prompt = prepare_prompt(template=PromptTemplate.EASY_QUERIES.value, **params)
     stream = llm_groq.chat.completions.create(
         messages=[

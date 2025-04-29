@@ -96,7 +96,7 @@ def ask(
     typer.echo(f"\n{username_from_file.title()}: {question}")
     typer.echo("Virtual Doctor: ", nl=False)
 
-    stream_client.send_request(question, username_from_file, capture_answer)
+    stream_client.send_request(question, username_from_file, capture_answer, True)
 
     if not oneshot and question and current_answer:
         chat_history_client.create_or_update_chat(
