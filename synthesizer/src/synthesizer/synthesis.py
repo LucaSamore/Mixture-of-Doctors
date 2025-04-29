@@ -6,7 +6,7 @@ import asyncio
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SYNTHESIS_PROMPT_PATH = os.path.join(BASE_DIR, "prompt/synth_prompt.md")
+SYNTHESIS_PROMPT_PATH = os.path.join(BASE_DIR, "prompts/synth_prompt.md")
 
 kafka = KafkaClient()
 redis = RedisClient()
@@ -152,25 +152,21 @@ async def generate_synthesis(
     return response
 
 
-async def send_response(
-    user_id: str, query: str, response_stream: AsyncIterator[Any]
-) -> None:
-    """Invia la risposta sintetizzata all'utente tramite Redis."""
+async def send_response(user_id: str, query: str, response_stream: Any) -> None:
+    """Sends the synthesized response to Redis."""
     try:
-        async for chunk in response_stream:
+        for chunk in response_stream:
             content = chunk.choices[0].delta.content
-            if content:
-                logger.debug(f"Streaming chunk: {content}")
 
-                redis.stream_message(
-                    stream_id=user_id,
-                    fields={
-                        "query": query,
-                        "response": content,
-                        "done": str(
-                            True if chunk.choices[0].finish_reason == "stop" else False
-                        ),
-                    },
-                )
+            logger.debug(f"Streaming chunk: {content}")
+
+            redis.stream_message(
+                stream_id=user_id,
+                fields={
+                    "query": query,
+                    "response": str(content),
+                    "done": str(chunk.choices[0].finish_reason),
+                },
+            )
     except Exception as e:
         logger.error(f"Error sending to Redis: {e}")
