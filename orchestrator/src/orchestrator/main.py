@@ -1,9 +1,19 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 from .planning import reason, act, ChatbotQuery
 from .exceptions import PlanningException
+from .configurations import kafka_producer
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await kafka_producer.start()
+    yield
+    await kafka_producer.stop()
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.exception_handler(PlanningException)
