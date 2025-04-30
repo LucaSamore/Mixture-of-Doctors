@@ -8,7 +8,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from loguru import logger
 import os
-import redis
+import redis.asyncio as redis
 import json
 import string
 import httpx
@@ -68,7 +68,7 @@ class RAGClients:
     async def create(cls) -> "RAGClients":
         self = cls()
         await self._init_kafka_client()
-        await self._init_qdrant_client()
+        self._init_qdrant_client()
         self._init_groq_client()
         self._init_redis_client()
         self._init_embedding_model()
@@ -77,7 +77,7 @@ class RAGClients:
     async def _init_kafka_client(self) -> None:
         self.kafka_client = await KafkaClient.create()
 
-    async def _init_qdrant_client(self) -> None:
+    def _init_qdrant_client(self) -> None:
         port = (lambda p: int(p) if p else 6333)(os.getenv("QDRANT_PORT", 6333))
         self.qdrant_client = AsyncQdrantClient(
             url=f"http://{os.getenv('QDRANT_HOST')}:{port}"

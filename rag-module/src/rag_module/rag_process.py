@@ -123,7 +123,7 @@ class RAGProcessor:
         )
         async for chunk in stream:
             content = chunk.choices[0].delta.content
-            self.clients.redis_client.xadd(
+            await self.clients.redis_client.xadd(
                 name=incoming_message.user_id,
                 fields={
                     "query": incoming_message.original_query,
