@@ -7,7 +7,7 @@ with (
     patch("synthesizer.utilities.LLMClient", MagicMock()),
     patch("synthesizer.utilities.RedisClient", MagicMock()),
 ):
-    from synthesizer.synthesis import RagResponse, QueryData
+    from synthesizer.synthesis import RagResponse, QueryData, ChatbotQuery
 
 
 @pytest.fixture
@@ -57,7 +57,8 @@ def reset_active_queries():
 def sample_rag_response():
     """Create a sample response from a disease-specific RAG module"""
     return RagResponse(
-        user_id="test_user",
+        chatbot_query=ChatbotQuery(user_id="test_user", query="What is diabetes?"),
+        query_id="test_query_id",
         disease="diabetes",
         original_query="What is diabetes?",
         response="Diabetes is a chronic condition affecting blood sugar levels.",
@@ -71,6 +72,7 @@ def sample_rag_response():
 def incomplete_query_data():
     """Query data with incomplete responses"""
     return QueryData(
+        query_id="test_query_id",
         user_id="test_user",
         original_query="What is diabetes?",
         responses={"diabetes": "Diabetes is a chronic condition."},
@@ -84,6 +86,7 @@ def incomplete_query_data():
 def complete_query_data():
     """Query data with complete set of responses"""
     return QueryData(
+        query_id="test_query_id",
         user_id="test_user",
         original_query="What is diabetes and hypertension?",
         responses={
