@@ -255,6 +255,7 @@ class StreamClient:
 
             # Check if this is the stop message
             if response_obj.done == "stop":
+                print_fn("\n", end="")
                 logger.debug("Received 'stop' signal, will exit stream processing")
                 return True  # Signal to stop processing
 
