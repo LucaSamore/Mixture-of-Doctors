@@ -13,8 +13,14 @@ redis = RedisClient()
 llm = LLMClient()
 
 
-class RagResponse(BaseModel):
+class ChatbotQuery(BaseModel):
     user_id: str
+    query: str
+
+
+class RagResponse(BaseModel):
+    chatbot_query: ChatbotQuery
+    query_id: str
     disease: str
     original_query: str
     response: str
@@ -24,6 +30,7 @@ class RagResponse(BaseModel):
 
 
 class QueryData(BaseModel):
+    query_id: str
     user_id: str
     original_query: str
     responses: Dict[str, str] = {}
@@ -32,7 +39,7 @@ class QueryData(BaseModel):
     stream: bool
 
 
-# [user_id, query_data]
+# [query_id, query_data]
 active_queries: Dict[str, QueryData] = {}
 
 
@@ -65,24 +72,27 @@ async def run_reader() -> None:
 
 
 async def handle_response(response: RagResponse) -> None:
-    user_id = response.user_id
+    query_id = response.query_id
 
-    if user_id not in active_queries:
-        active_queries[user_id] = QueryData(
-            user_id=user_id,
+    if query_id not in active_queries:
+        active_queries[query_id] = QueryData(
+            query_id=query_id,
+            user_id=response.chatbot_query.user_id,
             original_query=response.original_query,
             total=response.total,
             stream=response.stream,
         )
 
-    query_data = active_queries[user_id]
+    query_data = active_queries[query_id]
     query_data.responses[response.disease] = response.response
     query_data.received_numbers.add(response.number)
 
     if not is_query_complete(query_data):
         return
 
-    logger.info(f"All {query_data.total} responses received for user {user_id}")
+    logger.info(
+        f"All {query_data.total} responses received for user {response.chatbot_query.user_id}"
+    )
 
     try:
         kafka.commit()
@@ -91,7 +101,7 @@ async def handle_response(response: RagResponse) -> None:
 
     await synthesize_and_send_response(query_data)
 
-    del active_queries[user_id]
+    del active_queries[query_id]
 
 
 def is_query_complete(query_data: QueryData) -> bool:
@@ -126,7 +136,7 @@ async def synthesize_and_send_response(query_data: QueryData) -> None:
         )
 
         await send_response(
-            query_data.user_id, query_data.original_query, synthesis_stream
+            query_data.query_id, query_data.original_query, synthesis_stream
         )
 
     except Exception as e:
@@ -152,16 +162,16 @@ async def generate_synthesis(
     return response
 
 
-async def send_response(user_id: str, query: str, response_stream: Any) -> None:
+async def send_response(query_id: str, query: str, response_stream: Any) -> None:
     """Sends the synthesized response to Redis."""
     try:
-        for chunk in response_stream:
+        async for chunk in response_stream:
             content = chunk.choices[0].delta.content
 
             logger.debug(f"Streaming chunk: {content}")
 
             redis.stream_message(
-                stream_id=user_id,
+                stream_id=query_id,
                 fields={
                     "query": query,
                     "response": str(content),
