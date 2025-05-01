@@ -1,6 +1,6 @@
 import os
 
-USERNAME_FILE = os.path.abspath(__file__) + "./../username.txt"
+USERNAME_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "username.txt")
 
 
 def write_username_to_file(username: str) -> None:

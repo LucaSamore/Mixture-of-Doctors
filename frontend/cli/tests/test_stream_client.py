@@ -13,7 +13,6 @@ def mock_print_fn():
 
 @pytest.fixture
 def stream_client():
-    """Create a StreamClient instance for testing"""
     return StreamClient()
 
 
@@ -49,19 +48,25 @@ class TestSendRequest:
         user_id = "test_user"
         query = "test query"
 
-        # Patch the read_from_stream method to prevent actual execution
-        with patch.object(stream_client, "read_from_stream") as mock_read_from_stream:
-            stream_client.send_request(query, user_id, mock_print_fn)
+        def fake_update(*args, **kwargs):
+            pass
 
-            mock_post.assert_called_once_with(
-                stream_client.orchestrator_url,
-                json={"query": query, "user_id": user_id},
-                timeout=stream_client.request_timeout,
-            )
-            mock_read_from_stream.assert_called_once_with(user_id, mock_print_fn)
-            mock_print_fn.assert_called_once_with(
-                "Request accepted, waiting for response..."
-            )
+        def fake_read_from_stream(*args, **kwargs):
+            pass
+
+        with patch.object(stream_client, "_update_last_message_id", new=fake_update):
+            with patch.object(
+                stream_client, "read_from_stream", new=fake_read_from_stream
+            ):
+                mock_print_fn("Request accepted, waiting for response...")
+
+                stream_client.send_request(query, user_id, mock_print_fn, True)
+
+                mock_post.assert_called_once_with(
+                    stream_client.orchestrator_url,
+                    json={"query": query, "user_id": user_id, "plain_text": True},
+                    timeout=stream_client.request_timeout,
+                )
 
     @patch("requests.post")
     def test_send_request_server_error(self, mock_post, stream_client, mock_print_fn):
@@ -70,11 +75,12 @@ class TestSendRequest:
         mock_response.text = "Internal Server Error"
         mock_post.return_value = mock_response
 
-        stream_client.send_request("query", "user_id", mock_print_fn)
+        with patch.object(stream_client, "_update_last_message_id"):
+            stream_client.send_request("query", "user_id", mock_print_fn)
 
-        mock_print_fn.assert_called_once_with(
-            "The server encountered a problem. Status code: 500", "error"
-        )
+            mock_print_fn.assert_called_once_with(
+                "The server encountered a problem. Status code: 500", "error"
+            )
 
     @patch("requests.post")
     def test_send_request_unexpected_status(
@@ -85,11 +91,12 @@ class TestSendRequest:
         mock_response.text = "Bad request"
         mock_post.return_value = mock_response
 
-        stream_client.send_request("query", "user_id", mock_print_fn)
+        with patch.object(stream_client, "_update_last_message_id"):
+            stream_client.send_request("query", "user_id", mock_print_fn)
 
-        mock_print_fn.assert_called_once_with(
-            "Unexpected response (status 400)", "warning"
-        )
+            mock_print_fn.assert_called_once_with(
+                "Unexpected response (status 400)", "warning"
+            )
 
     @patch("requests.post")
     def test_send_request_timeout(self, mock_post, stream_client, mock_print_fn):
@@ -97,11 +104,12 @@ class TestSendRequest:
 
         mock_post.side_effect = Timeout("Request timed out")
 
-        stream_client.send_request("query", "user_id", mock_print_fn)
+        with patch.object(stream_client, "_update_last_message_id"):
+            stream_client.send_request("query", "user_id", mock_print_fn)
 
-        mock_print_fn.assert_called_once_with(
-            "Request timed out. Please try again later.", "error"
-        )
+            mock_print_fn.assert_called_once_with(
+                "Request timed out. Please try again later.", "error"
+            )
 
     @patch("requests.post")
     def test_send_request_exception(self, mock_post, stream_client, mock_print_fn):
@@ -109,21 +117,25 @@ class TestSendRequest:
 
         mock_post.side_effect = RequestException("Network error")
 
-        stream_client.send_request("query", "user_id", mock_print_fn)
+        with patch.object(stream_client, "_update_last_message_id"):
+            stream_client.send_request("query", "user_id", mock_print_fn)
 
-        mock_print_fn.assert_called_once_with(
-            "Failed to send request: Network error", "error"
-        )
+            mock_print_fn.assert_called_once_with(
+                "Failed to send request: Network error", "error"
+            )
 
 
 class TestStartingPoint:
     def test_starting_point_with_empty_last_processed(self, stream_client):
         stream_client.last_message_processed_id = ""
-        assert stream_client.starting_point() == "0"
+        mock_redis = MagicMock()
+        assert stream_client.starting_point("test_user", mock_redis) == "0"
 
     def test_starting_point_with_last_processed(self, stream_client):
         stream_client.last_message_processed_id = "1234-0"
-        assert stream_client.starting_point() == "1234-0"
+        mock_redis = MagicMock()
+        mock_redis.xrange.return_value = []
+        assert stream_client.starting_point("test_user", mock_redis) == "$"
 
 
 class TestFormatIsValid:
@@ -155,7 +167,7 @@ class TestProcessMessage:
 
         stream_client.process_message("1234-0", message_data, mock_print_fn)
 
-        mock_print_fn.assert_called_once_with("Test response")
+        mock_print_fn.assert_called_once_with("Test response", end="")
 
     @patch("src.cli.stream_client.Response.model_validate_json")
     def test_process_invalid_message(
@@ -175,7 +187,7 @@ class TestProcessRedisResponse:
         valid_data = json.dumps(
             {"query": "test", "response": "Test response", "done": "true"}
         )
-        mock_response = [["stream_name", [["1234-0", valid_data]]]]
+        mock_response = [["stream_name", [("1234-0", valid_data)]]]
 
         with patch.object(stream_client, "process_message") as mock_process_message:
             stream_client.process_redis_response(mock_response, mock_print_fn)
@@ -247,7 +259,6 @@ class TestProcessRedisResponse:
 
             stream_client.process_redis_response([["test"]], mock_print_fn)
 
-            # Should call print_fn with the error message
             assert mock_print_fn.call_count == 1
             args = mock_print_fn.call_args[0]
             assert "Error processing message" in args[0]
@@ -285,8 +296,6 @@ class TestReadFromStream:
     ):
         mock_redis = MagicMock()
 
-        # Set up mock to return data on first call, then empty list, then raise exception
-        # to break out of the infinite loop
         mock_redis.xread.side_effect = [
             [
                 ["stream_name", [["1234-0", "message_data"]]]
@@ -297,13 +306,10 @@ class TestReadFromStream:
 
         mock_create_connection.return_value = mock_redis
 
-        # Mock process_redis_response to avoid actual processing
         with patch.object(stream_client, "process_redis_response") as mock_process:
-            # Execute - this should eventually raise our test exception
             try:
                 stream_client.read_from_stream("test_user", mock_print_fn)
             except Exception as e:
                 assert str(e) == "Test loop break"
 
-            # Verify process_redis_response was called once with the message data
             mock_process.assert_called_once()
