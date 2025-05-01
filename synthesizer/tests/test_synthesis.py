@@ -34,7 +34,7 @@ class TestResponseSynthesis:
 
         # Check send_response was called with correct parameters
         mock_send.assert_called_once_with(
-            complete_query_data.query_id,
+            complete_query_data.user_id,
             complete_query_data.original_query,
             mock_llm_response_stream,
         )

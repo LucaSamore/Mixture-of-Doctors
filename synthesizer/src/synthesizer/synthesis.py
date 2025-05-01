@@ -19,7 +19,7 @@ class ChatbotQuery(BaseModel):
 
 
 class RagResponse(BaseModel):
-    chatbot_query: ChatbotQuery
+    user_id: str
     query_id: str
     disease: str
     original_query: str
@@ -77,7 +77,7 @@ async def handle_response(response: RagResponse) -> None:
     if query_id not in active_queries:
         active_queries[query_id] = QueryData(
             query_id=query_id,
-            user_id=response.chatbot_query.user_id,
+            user_id=response.user_id,
             original_query=response.original_query,
             total=response.total,
             stream=response.stream,
@@ -91,7 +91,7 @@ async def handle_response(response: RagResponse) -> None:
         return
 
     logger.info(
-        f"All {query_data.total} responses received for user {response.chatbot_query.user_id}"
+        f"All {query_data.total} responses received for user {response.user_id}"
     )
 
     try:
@@ -136,7 +136,7 @@ async def synthesize_and_send_response(query_data: QueryData) -> None:
         )
 
         await send_response(
-            query_data.query_id, query_data.original_query, synthesis_stream
+            query_data.user_id, query_data.original_query, synthesis_stream
         )
 
     except Exception as e:
@@ -162,16 +162,16 @@ async def generate_synthesis(
     return response
 
 
-async def send_response(query_id: str, query: str, response_stream: Any) -> None:
+async def send_response(user_id: str, query: str, response_stream: Any) -> None:
     """Sends the synthesized response to Redis."""
     try:
-        async for chunk in response_stream:
+        for chunk in response_stream:
             content = chunk.choices[0].delta.content
 
             logger.debug(f"Streaming chunk: {content}")
 
             redis.stream_message(
-                stream_id=query_id,
+                stream_id=user_id,
                 fields={
                     "query": query,
                     "response": str(content),

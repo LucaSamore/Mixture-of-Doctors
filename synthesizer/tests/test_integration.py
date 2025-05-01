@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 with (
     patch("synthesizer.utilities.KafkaClient") as MockKafkaClient,
@@ -8,7 +8,6 @@ with (
 ):
     from synthesizer.synthesis import (
         RagResponse,
-        ChatbotQuery,
         handle_response,
     )
 
@@ -28,7 +27,19 @@ class TestIntegrationFlow:
     ):
         """Test the full synthesis flow from multiple disease-specific responses to a combined answer"""
         # Configure the mock to simulate LLM response streaming
-        mock_generate_synthesis.return_value = await mock_llm_response_stream()
+        mock_chunk1 = MagicMock()
+        mock_chunk1.choices = [
+            MagicMock(delta=MagicMock(content="Diabetes is "), finish_reason=None)
+        ]
+
+        mock_chunk2 = MagicMock()
+        mock_chunk2.choices = [
+            MagicMock(
+                delta=MagicMock(content="a chronic condition."), finish_reason="stop"
+            )
+        ]
+
+        mock_generate_synthesis.return_value = [mock_chunk1, mock_chunk2]
 
         # Create a sample query and response
         original_query = "What is diabetes and hypertension?"
@@ -36,7 +47,7 @@ class TestIntegrationFlow:
 
         # Create the first response (for diabetes)
         diabetes_response = RagResponse(
-            chatbot_query=ChatbotQuery(user_id="test_user", query=original_query),
+            user_id="test_user",
             query_id=query_id,
             disease="diabetes",
             original_query=original_query,
@@ -52,7 +63,7 @@ class TestIntegrationFlow:
         mock_redis_stream.assert_not_called()
 
         hypertension_response = RagResponse(
-            chatbot_query=ChatbotQuery(user_id="test_user", query=original_query),
+            user_id="test_user",
             query_id=query_id,
             disease="hypertension",
             original_query=original_query,
@@ -86,7 +97,7 @@ class TestIntegrationFlow:
         await handle_response(sample_rag_response)
 
         second_response = RagResponse(
-            chatbot_query=ChatbotQuery(user_id="test_user", query="What is diabetes?"),
+            user_id="test_user",
             query_id="test_query_id",
             disease="hypertension",
             original_query="What is diabetes?",

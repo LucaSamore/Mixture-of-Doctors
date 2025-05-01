@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from synthesizer.synthesis import RagResponse, ChatbotQuery
+from synthesizer.synthesis import RagResponse
 
 # Import with mocks to prevent actual client instantiation
 with (
@@ -53,10 +53,7 @@ class TestQueryTracking:
 
         # Second response completes the set
         second_response = RagResponse(
-            chatbot_query=ChatbotQuery(
-                user_id=sample_rag_response.chatbot_query.user_id,
-                query=sample_rag_response.original_query,
-            ),
+            user_id=sample_rag_response.user_id,
             query_id=query_id,
             disease="hypertension",
             original_query=sample_rag_response.original_query,
@@ -89,10 +86,7 @@ class TestQueryTracking:
 
         # Duplicate response with same number
         duplicate = RagResponse(
-            chatbot_query=ChatbotQuery(
-                user_id=sample_rag_response.chatbot_query.user_id,
-                query=sample_rag_response.original_query,
-            ),
+            user_id=sample_rag_response.user_id,
             query_id=query_id,
             disease="diabetes",
             original_query=sample_rag_response.original_query,

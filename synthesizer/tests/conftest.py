@@ -7,7 +7,7 @@ with (
     patch("synthesizer.utilities.LLMClient", MagicMock()),
     patch("synthesizer.utilities.RedisClient", MagicMock()),
 ):
-    from synthesizer.synthesis import RagResponse, QueryData, ChatbotQuery
+    from synthesizer.synthesis import RagResponse, QueryData
 
 
 @pytest.fixture
@@ -57,7 +57,7 @@ def reset_active_queries():
 def sample_rag_response():
     """Create a sample response from a disease-specific RAG module"""
     return RagResponse(
-        chatbot_query=ChatbotQuery(user_id="test_user", query="What is diabetes?"),
+        user_id="test_user",
         query_id="test_query_id",
         disease="diabetes",
         original_query="What is diabetes?",
