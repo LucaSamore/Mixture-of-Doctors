@@ -157,14 +157,10 @@ echo -e "${YELLOW}=== Deploying RAG modules for each domain ===${NC}"
 deploy_rag_services "rag-module"
 echo -e "${GREEN}RAG modules deployment completed.${NC}"
 
-# Run ingestion if requested
-if [ "$RUN_INGESTION" = true ]; then
-    echo -e "${YELLOW}=== Running data ingestion as requested ===${NC}"
-    ./scripts/ingest_rag_data.sh
-    echo -e "${GREEN}Data ingestion completed.${NC}"
-else
-    echo -e "${YELLOW}Skipping data ingestion. To run ingestion, use './deploy.sh --ingest'${NC}"
-fi
+# Deploy Nginx reverse proxy
+echo -e "${YELLOW}=== Deploying Nginx reverse proxy ===${NC}"
+deploy_service "nginx" "infrastructure/nginx" ""
+echo -e "${GREEN}Nginx deployment completed.${NC}"
 
 # Deploy Cli with Docker
 cd frontend/cli
@@ -182,10 +178,14 @@ cd ../..
 
 echo -e "${GREEN}CLI container started successfully.${NC}"
 
-# Deploy Nginx reverse proxy
-echo -e "${YELLOW}=== Deploying Nginx reverse proxy ===${NC}"
-deploy_service "nginx" "infrastructure/nginx" ""
-echo -e "${GREEN}Nginx deployment completed.${NC}"
+# Run ingestion if requested
+if [ "$RUN_INGESTION" = true ]; then
+    echo -e "${YELLOW}=== Running data ingestion as requested ===${NC}"
+    ./scripts/ingest_rag_data.sh
+    echo -e "${GREEN}Data ingestion completed.${NC}"
+else
+    echo -e "${YELLOW}Skipping data ingestion. To run ingestion, use './deploy.sh --ingest'${NC}"
+fi
 
 echo -e "${GREEN}Deployment script finished.${NC}"
 echo -e "${YELLOW}To stop all services run: ${NC}./undeploy.sh"
@@ -214,14 +214,6 @@ echo -e "http://localhost:6333/dashboard"
 echo -e "http://localhost:6343/dashboard"
 echo -e "http://localhost:6353/dashboard"
 
-# Show current CLI .env content
-echo -e "${YELLOW}Current CLI .env configuration:${NC}"
-cat frontend/cli/.env 2>/dev/null || echo "No .env file found for CLI"
-
-echo
-echo -e "${YELLOW}Make sure the above configuration is correct for your environment.${NC}"
-
-# Optionally show CLI help
-if command -v uv &> /dev/null; then
-    uv run frontend/cli/src/cli/client.py mod --help
-fi
+echo -e "Entering CLI container..."
+echo -e "Run 'python -m cli.client mod --help' to run mod help command"
+docker exec -it mod-cli bash
