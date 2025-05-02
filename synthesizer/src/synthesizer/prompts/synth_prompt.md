@@ -39,7 +39,10 @@ When synthesizing information, follow these guidelines:
 ## Synthesis Inputs
 
 ### Original User Query:
-${original_query}
+\${original_query}
 
 ### Specialized RAG Responses:
-${responses}
+\${responses}
+
+## Output format
+\${output_format}

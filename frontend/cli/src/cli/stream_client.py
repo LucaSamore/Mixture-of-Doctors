@@ -64,7 +64,7 @@ class StreamClient:
             return None
 
     def send_request(self, query: Query, user_id: str, print_fn: Callable) -> None:
-        payload = {"query": query, "user_id": user_id}
+        payload = {"query": query, "user_id": user_id, "plain_text": True}
 
         # Get the last message ID before sending the request
         self._update_last_message_id(user_id)

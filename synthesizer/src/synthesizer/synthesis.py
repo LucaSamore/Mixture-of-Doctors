@@ -27,6 +27,7 @@ class RagResponse(BaseModel):
     stream: bool
     number: int
     total: int
+    plain_text: bool = False
 
 
 class QueryData(BaseModel):
@@ -37,6 +38,7 @@ class QueryData(BaseModel):
     received_numbers: Set[int] = set()
     total: int
     stream: bool
+    plain_text: bool
 
 
 # [query_id, query_data]
@@ -81,6 +83,7 @@ async def handle_response(response: RagResponse) -> None:
             original_query=response.original_query,
             total=response.total,
             stream=response.stream,
+            plain_text=response.plain_text,
         )
 
     query_data = active_queries[query_id]
@@ -132,7 +135,10 @@ async def synthesize_and_send_response(query_data: QueryData) -> None:
         logger.info(f"Responses to synthesize: {formatted_responses}")
 
         synthesis_stream = await generate_synthesis(
-            query_data.original_query, formatted_responses, query_data.stream
+            query_data.original_query,
+            formatted_responses,
+            query_data.stream,
+            query_data.plain_text,
         )
 
         await send_response(
@@ -144,13 +150,18 @@ async def synthesize_and_send_response(query_data: QueryData) -> None:
 
 
 async def generate_synthesis(
-    original_query: str, formatted_responses: str, stream: bool
+    original_query: str, formatted_responses: str, stream: bool, plain_text: bool
 ) -> AsyncIterator[Any]:
-    prompt = prepare_prompt(
-        SYNTHESIS_PROMPT_PATH,
-        original_query=original_query,
-        responses=formatted_responses,
-    )
+    if plain_text:
+        output_format = "Please provide your response in plain text format without any Markdown formatting."
+    else:
+        output_format = "Structure your answer with appropriate headings and sections."
+    params = {
+        "original_query": original_query,
+        "responses": formatted_responses,
+        "output_format": output_format,
+    }
+    prompt = prepare_prompt(template_path=SYNTHESIS_PROMPT_PATH, **params)
 
     try:
         response = await llm.generate(prompt, stream=stream)
