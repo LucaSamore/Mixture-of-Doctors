@@ -64,7 +64,7 @@ class TestSendRequest:
 
                 mock_post.assert_called_once_with(
                     stream_client.orchestrator_url,
-                    json={"query": query, "user_id": user_id},
+                    json={"query": query, "user_id": user_id, "plain_text": True},
                     timeout=stream_client.request_timeout,
                 )
 

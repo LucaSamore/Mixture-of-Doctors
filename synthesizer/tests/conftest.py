@@ -79,6 +79,7 @@ def incomplete_query_data():
         received_numbers={1},
         total=2,
         stream=True,
+        plain_text=True,
     )
 
 
@@ -96,6 +97,7 @@ def complete_query_data():
         received_numbers={1, 2},
         total=2,
         stream=True,
+        plain_text=True,
     )
 
 
