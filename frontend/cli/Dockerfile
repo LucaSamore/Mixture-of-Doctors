@@ -10,3 +10,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 COPY ./src/cli /app/cli
+
+CMD ["python", "-m", "cli.client", "--repl"]

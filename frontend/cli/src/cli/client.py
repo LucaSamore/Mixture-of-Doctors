@@ -1,34 +1,37 @@
-import typer
 from typer import Option
 from cli.stream_client import StreamClient
 from cli import write_username_to_file, read_username_from_file
 from cli.chat_history_client import ChatHistoryClient
 from cli.typer_config import set_usage_command
 import os
+import typer
 
-set_usage_command("docker exec mod-cli python -m cli.client mod")
+set_usage_command("mod [OPTIONS] COMMAND [ARGS]...")
 
 app = typer.Typer()
 chat_history_client = ChatHistoryClient()
 stream_client = StreamClient()
 
 
-@app.command()
-def mod() -> None:
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    repl: bool = Option(False, "--repl", help="Start REPL interactive mode"),
+) -> None:
     """
     Mixture of Doctors (MOD) CLI client.
 
     This tool allows you to interact with the virtual doctor system for self-management of chronic diseases.
-
-    Available subcommands:
-    - new: Create a new chat session
-    - restore: Continue an existing chat session
-    - chat: Start or restore a chat session
-    - ask: Ask a question to the virtual doctor
-    - quit: Close the current chat session
     """
-    typer.echo("Welcome to Mixture of Doctors!")
-    typer.echo("Use 'mod --help' to see available commands.")
+    if ctx.invoked_subcommand is None:
+        if repl:
+            # Import the REPL mode function here to avoid circular imports
+            from cli.repl import start_repl_mode
+
+            start_repl_mode()
+        else:
+            typer.echo("Welcome to Mixture of Doctors!")
+            typer.echo("Use 'mod --help' to see available commands.")
 
 
 mod_app = typer.Typer()

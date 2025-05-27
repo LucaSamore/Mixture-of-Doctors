@@ -167,7 +167,7 @@ docker run -d \
     --network mod-network \
     --env-file ./.env \
     mod/cli:latest \
-    sh -c "python -m cli.client mod --help && tail -f /dev/null"
+    sh -c "tail -f /dev/null"
 
 cd ../..
 
@@ -214,7 +214,14 @@ echo -e "http://localhost:6333/dashboard"
 echo -e "http://localhost:6343/dashboard"
 echo -e "http://localhost:6353/dashboard"
 
+# Show current CLI .env content
+echo -e "${YELLOW}Current CLI .env configuration:${NC}"
+cat frontend/cli/.env 2>/dev/null || echo "No .env file found for CLI"
+
+echo
+echo -e "${YELLOW}Make sure the above configuration is correct for your environment.${NC}"
+
 echo -e "Entering CLI container..."
-echo -e "Run 'python -m cli.client mod --help' to run mod help command"
+echo -e "Run 'mod --help' to run mod help command"
 echo -e "Run 'exit' to exit from CLI container"
-docker exec -it mod-cli bash
+docker exec -it mod-cli python -m cli.client --repl
