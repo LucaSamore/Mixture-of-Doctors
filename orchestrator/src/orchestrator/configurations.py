@@ -2,8 +2,9 @@ from typing import List
 from dotenv import load_dotenv
 from loguru import logger
 from enum import Enum
-from groq import AsyncGroq
+from fastapi import Request
 from aiokafka import AIOKafkaProducer
+from groq import AsyncGroq
 import redis.asyncio as redis
 import json
 import os
@@ -13,10 +14,6 @@ load_dotenv()
 
 CHAT_HISTORY_URL = os.getenv("CHAT_HISTORY_URL")
 CONFIG_FILE_PATH = "/app/config.json"
-LOG_FILE_PATH = "/app/logs/orchestrator.log"
-
-
-logger.add(LOG_FILE_PATH, rotation="10 MB")
 
 
 class PromptTemplate(Enum):
@@ -44,18 +41,19 @@ def get_diseases_from_config_file() -> List[str]:
         return []
 
 
-llm_groq = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
+def get_kafka_producer(request: Request) -> AIOKafkaProducer:
+    if not hasattr(request.app.state, "kafka_producer"):
+        raise RuntimeError("Kafka producer is not initialized")
+    return request.app.state.kafka_producer
 
 
-kafka_producer = AIOKafkaProducer(
-    bootstrap_servers=os.getenv("KAFKA_BROKER", "localhost:9092"),
-    value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-)
+def get_redis_client(request: Request) -> redis.Redis:
+    if not hasattr(request.app.state, "redis_client"):
+        raise RuntimeError("Redis client is not initialized")
+    return request.app.state.redis_client
 
 
-redis_client = redis.Redis(
-    host=os.getenv("REDIS_HOST", "redis"),
-    port=(lambda p: int(p) if p else 6379)(os.getenv("REDIS_PORT")),
-    password=os.getenv("REDIS_PASSWORD", "redispassword"),
-    decode_responses=True,
-)
+def get_llm_groq(request: Request) -> AsyncGroq:
+    if not hasattr(request.app.state, "llm_groq"):
+        raise RuntimeError("LLM Groq client is not initialized")
+    return request.app.state.llm_groq

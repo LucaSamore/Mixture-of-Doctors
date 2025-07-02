@@ -5,14 +5,14 @@ from .configurations import (
     get_diseases_from_config_file,
     PromptTemplate,
     prepare_prompt,
-    llm_groq,
-    kafka_producer,
-    redis_client,
     CHAT_HISTORY_URL,
 )
 from .exceptions import ReasoningException, ActingException
 from datetime import datetime
 from typing import List
+from groq import AsyncGroq
+from aiokafka import AIOKafkaProducer
+import redis.asyncio as redis
 import httpx
 import json
 import uuid
@@ -88,14 +88,14 @@ def create_rag_module_message(
     )
 
 
-async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
+async def reason(chatbot_query: ChatbotQuery, llm: AsyncGroq) -> ReasoningOutcome:
     logger.info(f"Diseases: {diseases}")
     params = {"query": chatbot_query.query, "diseases": diseases}
     prompt = prepare_prompt(template=PromptTemplate.PLANNING.value, **params)
     for i in range(REASONING_ATTEMPTS):
         try:
             logger.info(f"Reasoning attempt #{i + 1}/{REASONING_ATTEMPTS}")
-            chat_completion = await llm_groq.chat.completions.create(
+            chat_completion = await llm.chat.completions.create(
                 messages=[{"role": "system", "content": prompt}],
                 model="llama-3.3-70b-versatile",
                 stream=False,
@@ -108,26 +108,38 @@ async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
     raise ReasoningException(f"Could not reason after {REASONING_ATTEMPTS} attempt(s)")
 
 
-async def act(outcome: ReasoningOutcome, chatbot_query: ChatbotQuery) -> None:
+async def act(
+    outcome: ReasoningOutcome,
+    chatbot_query: ChatbotQuery,
+    kafka_producer: AIOKafkaProducer,
+    redis_client: redis.Redis,
+    llm: AsyncGroq,
+) -> None:
     try:
         match outcome.classification:
             case Grade.EASY:
-                await answer(chatbot_query)
+                await answer(chatbot_query, llm, redis_client)
             case Grade.MEDIUM:
-                await ask_single_doctor(chatbot_query, outcome.diseases[0].disease)
+                await ask_single_doctor(
+                    chatbot_query, outcome.diseases[0].disease, kafka_producer
+                )
             case Grade.HARD:
-                await ask_many_doctors(chatbot_query, outcome.diseases)
+                await ask_many_doctors(chatbot_query, outcome.diseases, kafka_producer)
     except Exception as e:
         logger.error(f"Error while trying to perform an action: {e}")
         raise ActingException("Action not performed")
 
 
-async def answer(chatbot_query: ChatbotQuery) -> None:
+async def answer(
+    chatbot_query: ChatbotQuery, llm: AsyncGroq, redis_client: redis.Redis
+) -> None:
     conversation = await fetch_chat_history_for_user(chatbot_query.user_id)
-    await generate_answer(chatbot_query, conversation)
+    await generate_answer(chatbot_query, conversation, llm, redis_client)
 
 
-async def ask_single_doctor(chatbot_query: ChatbotQuery, disease: str) -> None:
+async def ask_single_doctor(
+    chatbot_query: ChatbotQuery, disease: str, kafka_producer: AIOKafkaProducer
+) -> None:
     query_id = str(uuid.uuid4())
     msg = create_rag_module_message(
         chatbot_query, query_id, chatbot_query.query, stream=True, number=1, total=1
@@ -138,7 +150,9 @@ async def ask_single_doctor(chatbot_query: ChatbotQuery, disease: str) -> None:
 
 
 async def ask_many_doctors(
-    chatbot_query: ChatbotQuery, questions: List[DiseaseSpecificQuestion]
+    chatbot_query: ChatbotQuery,
+    questions: List[DiseaseSpecificQuestion],
+    kafka_producer: AIOKafkaProducer,
 ) -> None:
     query_id = str(uuid.uuid4())
     for i, dsq in enumerate(questions, start=1):
@@ -164,7 +178,10 @@ async def fetch_chat_history_for_user(user_id: str) -> List[ConversationItem]:
 
 
 async def generate_answer(
-    chatbot_query: ChatbotQuery, conversation: List[ConversationItem]
+    chatbot_query: ChatbotQuery,
+    conversation: List[ConversationItem],
+    llm: AsyncGroq,
+    redis_client: redis.Redis,
 ) -> None:
     context = json.dumps([item.model_dump_json() for item in conversation], indent=4)
     logger.info(f"Context: {context}")
@@ -180,7 +197,7 @@ async def generate_answer(
         "output_format": output_format,
     }
     prompt = prepare_prompt(template=PromptTemplate.EASY_QUERIES.value, **params)
-    stream = await llm_groq.chat.completions.create(
+    stream = await llm.chat.completions.create(
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": chatbot_query.query},
