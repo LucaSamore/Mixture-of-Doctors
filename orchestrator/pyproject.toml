@@ -11,10 +11,10 @@ dependencies = [
     "loguru>=0.7.3",
     "redis>=5.2.1",
     "fastapi[standard]>=0.115.11",
-    "kafka-python>=2.0.6",
     "ollama>=0.4.7",
     "groq>=0.20.0",
     "python-dotenv>=1.0.1",
+    "aiokafka>=0.12.0",
 ]
 
 [project.scripts]

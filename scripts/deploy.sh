@@ -157,11 +157,6 @@ echo -e "${YELLOW}=== Deploying RAG modules for each domain ===${NC}"
 deploy_rag_services "rag-module"
 echo -e "${GREEN}RAG modules deployment completed.${NC}"
 
-# Deploy Nginx reverse proxy
-echo -e "${YELLOW}=== Deploying Nginx reverse proxy ===${NC}"
-deploy_service "nginx" "infrastructure/nginx" ""
-echo -e "${GREEN}Nginx deployment completed.${NC}"
-
 # Deploy Cli with Docker
 cd frontend/cli
 
@@ -175,6 +170,15 @@ docker run -d \
     sh -c "python -m cli.client mod --help && tail -f /dev/null"
 
 cd ../..
+
+# Run ingestion if requested
+if [ "$RUN_INGESTION" = true ]; then
+    echo -e "${YELLOW}=== Running data ingestion as requested ===${NC}"
+    ./scripts/ingest_rag_data.sh
+    echo -e "${GREEN}Data ingestion completed.${NC}"
+else
+    echo -e "${YELLOW}Skipping data ingestion. To run ingestion, use './deploy.sh --ingest'${NC}"
+fi
 
 echo -e "${GREEN}CLI container started successfully.${NC}"
 
@@ -216,4 +220,5 @@ echo -e "http://localhost:6353/dashboard"
 
 echo -e "Entering CLI container..."
 echo -e "Run 'python -m cli.client mod --help' to run mod help command"
+echo -e "Run 'exit' to exit from CLI container"
 docker exec -it mod-cli bash

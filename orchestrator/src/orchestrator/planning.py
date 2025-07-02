@@ -8,7 +8,7 @@ from .configurations import (
     llm_groq,
     kafka_producer,
     redis_client,
-    chat_history_url,
+    CHAT_HISTORY_URL,
 )
 from .exceptions import ReasoningException, ActingException
 from datetime import datetime
@@ -95,7 +95,7 @@ async def reason(chatbot_query: ChatbotQuery) -> ReasoningOutcome:
     for i in range(REASONING_ATTEMPTS):
         try:
             logger.info(f"Reasoning attempt #{i + 1}/{REASONING_ATTEMPTS}")
-            chat_completion = llm_groq.chat.completions.create(
+            chat_completion = await llm_groq.chat.completions.create(
                 messages=[{"role": "system", "content": prompt}],
                 model="llama-3.3-70b-versatile",
                 stream=False,
@@ -134,7 +134,7 @@ async def ask_single_doctor(chatbot_query: ChatbotQuery, disease: str) -> None:
     )
     topic = f"rag-module-{disease}"
     logger.info(f"Sending message to {topic}: {msg.model_dump_json(indent=4)}")
-    kafka_producer.send(topic=topic, value=msg.model_dump())
+    await kafka_producer.send_and_wait(topic=topic, value=msg.model_dump())
 
 
 async def ask_many_doctors(
@@ -152,12 +152,12 @@ async def ask_many_doctors(
             total=len(questions),
         )
         logger.info(f"Sending message to {topic}: {msg.model_dump_json(indent=4)}")
-        kafka_producer.send(topic=topic, value=msg.model_dump())
+        await kafka_producer.send_and_wait(topic=topic, value=msg.model_dump())
 
 
 async def fetch_chat_history_for_user(user_id: str) -> List[ConversationItem]:
     async with httpx.AsyncClient() as client:
-        response = await client.get(f"{chat_history_url}/{user_id}")
+        response = await client.get(f"{CHAT_HISTORY_URL}/{user_id}")
         response.raise_for_status()
         model = ConversationModel.model_validate(response.json())
     return model.conversation
@@ -169,20 +169,18 @@ async def generate_answer(
     context = json.dumps([item.model_dump_json() for item in conversation], indent=4)
     logger.info(f"Context: {context}")
 
-    # Add format instructions based on plain_text flag
-    format_instructions = (
-        "Provide your response in plain text format without any Markdown formatting."
-        if chatbot_query.plain_text
-        else "Structure your answer with appropriate Markdown headings and sections for better readability."
-    )
+    if chatbot_query.plain_text:
+        output_format = "Please provide your response in plain text format without any Markdown formatting."
+    else:
+        output_format = "Structure your answer with appropriate headings and sections."
 
     params = {
         "query": chatbot_query.query,
         "context": context,
-        "format_instructions": format_instructions,
+        "output_format": output_format,
     }
     prompt = prepare_prompt(template=PromptTemplate.EASY_QUERIES.value, **params)
-    stream = llm_groq.chat.completions.create(
+    stream = await llm_groq.chat.completions.create(
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": chatbot_query.query},
@@ -190,10 +188,10 @@ async def generate_answer(
         model="llama-3.3-70b-versatile",
         stream=True,
     )
-    for chunk in stream:
+    async for chunk in stream:
         content = chunk.choices[0].delta.content
         logger.info(content)
-        redis_client.xadd(
+        await redis_client.xadd(
             name=chatbot_query.user_id,
             fields={
                 "query": chatbot_query.query,

@@ -17,7 +17,6 @@ colorama==0.4.6
     # via
     #   click
     #   loguru
-    #   pytest
 distro==1.9.0
     # via groq
 dotenv==0.9.9
@@ -40,18 +39,12 @@ idna==3.10
     # via
     #   anyio
     #   httpx
-iniconfig==2.1.0
-    # via pytest
 kafka-python==2.1.2
     # via synthesizer (pyproject.toml)
 loguru==0.7.3
     # via synthesizer (pyproject.toml)
 ollama==0.4.7
     # via synthesizer (pyproject.toml)
-packaging==24.2
-    # via pytest
-pluggy==1.5.0
-    # via pytest
 pydantic==2.10.6
     # via
     #   fastapi
@@ -59,8 +52,6 @@ pydantic==2.10.6
     #   ollama
 pydantic-core==2.27.2
     # via pydantic
-pytest==8.3.5
-    # via synthesizer (pyproject.toml)
 python-dotenv==1.0.1
     # via dotenv
 redis==5.2.1
