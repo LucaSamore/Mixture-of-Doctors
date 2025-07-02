@@ -63,10 +63,8 @@ class StreamClient:
             logger.error(f"Failed to connect to Redis: {e}")
             return None
 
-    def send_request(
-        self, query: Query, user_id: str, print_fn: Callable, plain_text: bool = False
-    ) -> None:
-        payload = {"query": query, "user_id": user_id, "plain_text": plain_text}
+    def send_request(self, query: Query, user_id: str, print_fn: Callable) -> None:
+        payload = {"query": query, "user_id": user_id, "plain_text": True}
 
         # Get the last message ID before sending the request
         self._update_last_message_id(user_id)
@@ -257,6 +255,7 @@ class StreamClient:
 
             # Check if this is the stop message
             if response_obj.done == "stop":
+                print_fn("\n", end="")
                 logger.debug("Received 'stop' signal, will exit stream processing")
                 return True  # Signal to stop processing
 

@@ -169,17 +169,15 @@ async def generate_answer(
     context = json.dumps([item.model_dump_json() for item in conversation], indent=4)
     logger.info(f"Context: {context}")
 
-    # Add format instructions based on plain_text flag
-    format_instructions = (
-        "Provide your response in plain text format without any Markdown formatting."
-        if chatbot_query.plain_text
-        else "Structure your answer with appropriate Markdown headings and sections for better readability."
-    )
+    if chatbot_query.plain_text:
+        output_format = "Please provide your response in plain text format without any Markdown formatting."
+    else:
+        output_format = "Structure your answer with appropriate headings and sections."
 
     params = {
         "query": chatbot_query.query,
         "context": context,
-        "format_instructions": format_instructions,
+        "output_format": output_format,
     }
     prompt = prepare_prompt(template=PromptTemplate.EASY_QUERIES.value, **params)
     stream = await llm_groq.chat.completions.create(

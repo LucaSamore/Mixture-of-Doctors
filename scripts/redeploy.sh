@@ -24,6 +24,7 @@ show_help() {
     echo -e "  --chat-history      Redeploy only the chat-history service"
     echo -e "  --rag-module        Redeploy only the RAG module services"
     echo -e "  --nginx             Redeploy only the nginx service"
+    echo -e "  --cli               Redeploy only the CLI service"
     echo -e "  --help              Display this help message"
     echo -e ""
     echo -e "Example: ./redeploy.sh --orchestrator"
@@ -249,6 +250,56 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
+# Display service status
+echo -e "${YELLOW}Checking deployment status...${NC}"
+sleep 5
+echo -e "${YELLOW}=== Services Status ===${NC}"
+docker service ls
+
+echo -e "${GREEN}Redeployment completed successfully!${NC}"
+echo -e "${YELLOW}To check service logs: ${NC}docker service logs <service_name>"
+
+
+# Function to redeploy CLI service
+redeploy_cli() {
+    echo -e "${YELLOW}=== Redeploying CLI Service ===${NC}"
+    
+    # Check if CLI container exists
+    if docker ps -a | grep -q "mod-cli"; then
+        echo -e "${YELLOW}Removing existing CLI container...${NC}"
+        docker rm -f mod-cli
+    else
+        echo -e "${YELLOW}CLI container not found, deploying fresh...${NC}"
+    fi
+    
+    # Wait for container to be completely removed
+    sleep 2
+    
+    # Rebuild CLI image
+    echo -e "${YELLOW}Rebuilding CLI image...${NC}"
+    cd frontend/cli
+    docker build -t mod/cli:latest .
+    
+    # Redeploy CLI container
+    echo -e "${YELLOW}Starting new CLI container...${NC}"
+    docker run -d \
+        --name mod-cli \
+        --network mod-network \
+        --env-file ./.env \
+        mod/cli:latest \
+        sh -c "tail -f /dev/null"
+    
+    cd ../..
+    
+    echo -e "${GREEN}CLI service redeployed successfully!${NC}"
+    
+    # Avvia automaticamente la REPL
+    echo -e "${YELLOW}Starting CLI REPL...${NC}"
+    docker exec -it mod-cli python -m cli.client --repl
+}
+
+
+
 # Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -257,12 +308,14 @@ while [[ "$#" -gt 0 ]]; do
         --chat-history) redeploy_chat_history; shift ;;
         --rag-module) redeploy_rag_module; shift ;;
         --nginx) redeploy_nginx; shift ;;
+        --cli) redeploy_cli; shift ;;
         --all)
             redeploy_orchestrator
             redeploy_synthesizer
             redeploy_chat_history 
             redeploy_rag_module
             redeploy_nginx
+            redeploy_cli
             shift 
             ;;
         --help)
@@ -276,12 +329,3 @@ while [[ "$#" -gt 0 ]]; do
             ;;
     esac
 done
-
-# Display service status
-echo -e "${YELLOW}Checking deployment status...${NC}"
-sleep 5
-echo -e "${YELLOW}=== Services Status ===${NC}"
-docker service ls
-
-echo -e "${GREEN}Redeployment completed successfully!${NC}"
-echo -e "${YELLOW}To check service logs: ${NC}docker service logs <service_name>"

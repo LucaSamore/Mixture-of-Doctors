@@ -3,7 +3,10 @@ from typer import Option
 from cli.stream_client import StreamClient
 from cli import write_username_to_file, read_username_from_file
 from cli.chat_history_client import ChatHistoryClient
+from cli.typer_config import set_usage_command
 import os
+
+set_usage_command("docker exec mod-cli python -m cli.client mod")
 
 app = typer.Typer()
 chat_history_client = ChatHistoryClient()
@@ -96,11 +99,11 @@ def ask(
     typer.echo(f"\n{username_from_file.title()}: {question}")
     typer.echo("Virtual Doctor: ", nl=False)
 
-    stream_client.send_request(question, username_from_file, capture_answer, True)
+    stream_client.send_request(question, username_from_file, capture_answer)
 
     if not oneshot and question and current_answer:
         chat_history_client.create_or_update_chat(
-            username_from_file, question, current_answer
+            username_from_file, question, current_answer, typer.echo
         )
 
 
@@ -118,16 +121,9 @@ def quit() -> None:
 def new_chat(username: str):
     write_username_to_file(username)
 
-    welcome_message = "I'm your virtual doctor, ready to assist with your health questions. How can I help you today?"
-
-    chat_history_client.create_or_update_chat(
-        username,
-        "Create a chat session",
-        welcome_message,
-    )
+    chat_history_client.create_chat(username, typer.echo)
 
     typer.echo(f"Welcome, {username}! A new chat session has been created for you.")
-    typer.echo(welcome_message)
     print_help_message()
 
 
@@ -138,15 +134,13 @@ def restore_chat(username: str):
 
 
 def display_chat_history(username: str):
-    history = chat_history_client.get_chat_history(username)
+    history = chat_history_client.get_chat_history(username, typer.echo)
 
     if history and history.conversation:
         typer.echo("\n=== Chat History ===")
         for i, item in enumerate(history.conversation):
             typer.echo(f"\n{username.title()}: {item.question}")
             typer.echo(f"Virtual Doctor: {item.answer}")
-    else:
-        typer.echo("No chat history found or unable to retrieve chat history.")
 
 
 def print_help_message():

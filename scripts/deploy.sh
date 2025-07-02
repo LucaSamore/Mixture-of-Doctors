@@ -157,6 +157,20 @@ echo -e "${YELLOW}=== Deploying RAG modules for each domain ===${NC}"
 deploy_rag_services "rag-module"
 echo -e "${GREEN}RAG modules deployment completed.${NC}"
 
+# Deploy Cli with Docker
+cd frontend/cli
+
+docker build -t mod/cli:latest .
+docker rm -f mod-cli 2>/dev/null || true
+docker run -d \
+    --name mod-cli \
+    --network mod-network \
+    --env-file ./.env \
+    mod/cli:latest \
+    sh -c "python -m cli.client mod --help && tail -f /dev/null"
+
+cd ../..
+
 # Run ingestion if requested
 if [ "$RUN_INGESTION" = true ]; then
     echo -e "${YELLOW}=== Running data ingestion as requested ===${NC}"
@@ -165,6 +179,8 @@ if [ "$RUN_INGESTION" = true ]; then
 else
     echo -e "${YELLOW}Skipping data ingestion. To run ingestion, use './deploy.sh --ingest'${NC}"
 fi
+
+echo -e "${GREEN}CLI container started successfully.${NC}"
 
 # Deploy Nginx reverse proxy
 echo -e "${YELLOW}=== Deploying Nginx reverse proxy ===${NC}"
@@ -198,14 +214,7 @@ echo -e "http://localhost:6333/dashboard"
 echo -e "http://localhost:6343/dashboard"
 echo -e "http://localhost:6353/dashboard"
 
-# Show current CLI .env content
-echo -e "${YELLOW}Current CLI .env configuration:${NC}"
-cat frontend/cli/src/cli/.env 2>/dev/null || echo "No .env file found for CLI"
-
-echo
-echo -e "${YELLOW}Make sure the above configuration is correct for your environment.${NC}"
-
-# Optionally show CLI help
-if command -v uv &> /dev/null; then
-    uv run frontend/cli/src/cli/client.py mod --help
-fi
+echo -e "Entering CLI container..."
+echo -e "Run 'python -m cli.client mod --help' to run mod help command"
+echo -e "Run 'exit' to exit from CLI container"
+docker exec -it mod-cli bash

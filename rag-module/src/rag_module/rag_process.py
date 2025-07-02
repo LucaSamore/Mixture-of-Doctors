@@ -84,7 +84,7 @@ async def retrieve(query: Query) -> List[dict]:
     return results
 
 
-async def augment(embeddings: List[dict], query: Query, user_id: str) -> Prompt:
+async def augment(embeddings: List[dict], user_id: str, plain_text: bool) -> Prompt:
     conversation = await fetch_chat_history_for_user(user_id)
 
     conversation_data = [item.model_dump() for item in conversation]
@@ -108,7 +108,17 @@ async def augment(embeddings: List[dict], query: Query, user_id: str) -> Prompt:
     logger.info(f"Embeddings Context: {embeddings_context}")
 
     combined_context = f"Chat History:\n{context}\n\nEmbeddings:\n{embeddings_context}"
-    params = {"query": query, "context": combined_context}
+
+    if plain_text:
+        output_format = "Please provide your response in plain text format without any Markdown formatting."
+    else:
+        output_format = "Structure your answer with appropriate headings and sections."
+
+    params = {
+        "domain": DOMAIN,
+        "context": combined_context,
+        "output_format": output_format,
+    }
     return prepare_prompt(template=PROMPT_FILE, **params)
 
 
@@ -165,7 +175,8 @@ async def handle_incoming_message() -> None:
         logger.info(f"Received message: {message}")
         try:
             context = await retrieve(message.rag_query)
-            prompt = await augment(context, message.rag_query, message.user_id)
+            prompt = await augment(context, message.user_id, message.plain_text)
+            logger.info(f"Generated prompt: {prompt}")
             await generate(prompt, message)
         except Exception as e:
             logger.error(f"Error processing message: {e}")

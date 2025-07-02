@@ -23,6 +23,7 @@ class RAGModuleMessage(BaseModel):
     stream: bool
     number: int
     total: int
+    plain_text: bool = False
 
 
 class SynthesizerMessage(BaseModel):
@@ -34,6 +35,7 @@ class SynthesizerMessage(BaseModel):
     stream: bool
     number: int
     total: int
+    plain_text: bool = False
 
 
 class KafkaClient:
@@ -123,4 +125,5 @@ class KafkaClient:
             stream=True,
             number=incoming_message.number,
             total=incoming_message.total,
+            plain_text=incoming_message.plain_text,
         )
