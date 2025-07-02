@@ -60,7 +60,7 @@ class TestSendRequest:
             ):
                 mock_print_fn("Request accepted, waiting for response...")
 
-                stream_client.send_request(query, user_id, mock_print_fn, True)
+                stream_client.send_request(query, user_id, mock_print_fn)
 
                 mock_post.assert_called_once_with(
                     stream_client.orchestrator_url,
