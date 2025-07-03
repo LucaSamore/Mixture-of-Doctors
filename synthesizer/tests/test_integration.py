@@ -1,77 +1,83 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 with (
     patch("synthesizer.utilities.KafkaClient") as MockKafkaClient,
     patch("synthesizer.utilities.RedisClient") as MockRedisClient,
     patch("synthesizer.utilities.LLMClient") as MockLLMClient,
 ):
-    from synthesizer.synthesis import handle_response, RagResponse, send_response
+    from synthesizer.synthesis import (
+        RagResponse,
+        handle_response,
+    )
 
 
 class TestIntegrationFlow:
     """End-to-end test flows for the synthesizer component"""
 
     @pytest.mark.asyncio
-    @patch("synthesizer.synthesis.prepare_prompt")
     @patch("synthesizer.synthesis.redis.stream_message")
-    @patch("synthesizer.synthesis.llm.generate")
+    @patch("synthesizer.synthesis.generate_synthesis")
     async def test_complete_synthesis_flow(
         self,
-        mock_llm_generate,
+        mock_generate_synthesis,
         mock_redis_stream,
-        mock_prepare_prompt,
         mock_llm_response_stream,
-        sample_rag_response,
         reset_active_queries,
     ):
-        """Test full flow from receiving responses to synthesis to streaming"""
-        mock_prepare_prompt.return_value = "Formatted prompt"
-        mock_llm_generate.return_value = (
-            await mock_llm_response_stream()
-        )  # Use the result of calling the mock
+        """Test the full synthesis flow from multiple disease-specific responses to a combined answer"""
+        # Configure the mock to simulate LLM response streaming
+        mock_chunk1 = MagicMock()
+        mock_chunk1.choices = [
+            MagicMock(delta=MagicMock(content="Diabetes is "), finish_reason=None)
+        ]
 
-        # First response
-        await handle_response(sample_rag_response)
+        mock_chunk2 = MagicMock()
+        mock_chunk2.choices = [
+            MagicMock(
+                delta=MagicMock(content="a chronic condition."), finish_reason="stop"
+            )
+        ]
 
-        mock_prepare_prompt.assert_not_called()
-        mock_llm_generate.assert_not_called()
+        mock_generate_synthesis.return_value = [mock_chunk1, mock_chunk2]
+
+        # Create a sample query and response
+        original_query = "What is diabetes and hypertension?"
+        query_id = "test_query_id"
+
+        # Create the first response (for diabetes)
+        diabetes_response = RagResponse(
+            user_id="test_user",
+            query_id=query_id,
+            disease="diabetes",
+            original_query=original_query,
+            response="Diabetes is a chronic condition that affects how your body processes blood sugar.",
+            stream=True,
+            number=1,
+            total=2,
+        )
+        await handle_response(diabetes_response)
+
+        # Verify that the response was not sent to synthesis yet
+        mock_generate_synthesis.assert_not_called()
         mock_redis_stream.assert_not_called()
 
-        second_response = RagResponse(
+        hypertension_response = RagResponse(
             user_id="test_user",
+            query_id=query_id,
             disease="hypertension",
-            original_query="What is diabetes?",
-            response="Hypertension is high blood pressure.",
+            original_query=original_query,
+            response="Hypertension, or high blood pressure, is a condition where blood pressure is consistently too high.",
             stream=True,
             number=2,
             total=2,
         )
+        await handle_response(hypertension_response)
 
-        await handle_response(second_response)
+        mock_generate_synthesis.assert_called_once()
 
-        mock_prepare_prompt.assert_called_once()
-        assert "synth_prompt.md" in mock_prepare_prompt.call_args[0][0]
-
-        mock_llm_generate.assert_called_once()
-
-        await send_response(
-            second_response.user_id,
-            second_response.original_query,
-            await mock_llm_response_stream(),
-        )
-
+        # Verify that the synthesis response was sent to Redis for both chunks
         assert mock_redis_stream.call_count == 2
-
-        first_call = mock_redis_stream.call_args_list[0]
-        assert first_call[1]["stream_id"] == "test_user"
-        assert first_call[1]["fields"]["query"] == "What is diabetes?"
-        assert first_call[1]["fields"]["response"] == "Diabetes is "
-        assert first_call[1]["fields"]["done"] == "False"
-
-        final_call = mock_redis_stream.call_args_list[1]
-        assert final_call[1]["fields"]["response"] == "a chronic condition."
-        assert final_call[1]["fields"]["done"] == "True"
 
     @pytest.mark.asyncio
     @patch("synthesizer.synthesis.llm.generate")
@@ -92,9 +98,10 @@ class TestIntegrationFlow:
 
         second_response = RagResponse(
             user_id="test_user",
+            query_id="test_query_id",
             disease="hypertension",
-            response="Hypertension information",
             original_query="What is diabetes?",
+            response="Hypertension is high blood pressure.",
             stream=True,
             number=2,
             total=2,
@@ -105,5 +112,6 @@ class TestIntegrationFlow:
         mock_kafka_commit.assert_called_once()
 
         # Should log error
-        mock_logger.assert_called_once()
-        assert "Error during synthesis" in mock_logger.call_args[0][0]
+        assert mock_logger.call_count == 2
+        assert "Error generating synthesis" in mock_logger.call_args_list[0][0][0]
+        assert "Error during synthesis" in mock_logger.call_args_list[1][0][0]

@@ -58,6 +58,7 @@ def sample_rag_response():
     """Create a sample response from a disease-specific RAG module"""
     return RagResponse(
         user_id="test_user",
+        query_id="test_query_id",
         disease="diabetes",
         original_query="What is diabetes?",
         response="Diabetes is a chronic condition affecting blood sugar levels.",
@@ -71,12 +72,14 @@ def sample_rag_response():
 def incomplete_query_data():
     """Query data with incomplete responses"""
     return QueryData(
+        query_id="test_query_id",
         user_id="test_user",
         original_query="What is diabetes?",
         responses={"diabetes": "Diabetes is a chronic condition."},
         received_numbers={1},
         total=2,
         stream=True,
+        plain_text=True,
     )
 
 
@@ -84,6 +87,7 @@ def incomplete_query_data():
 def complete_query_data():
     """Query data with complete set of responses"""
     return QueryData(
+        query_id="test_query_id",
         user_id="test_user",
         original_query="What is diabetes and hypertension?",
         responses={
@@ -93,6 +97,7 @@ def complete_query_data():
         received_numbers={1, 2},
         total=2,
         stream=True,
+        plain_text=True,
     )
 
 
