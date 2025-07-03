@@ -10,7 +10,7 @@ patch("qdrant_client.QdrantClient", MagicMock()).start()
 # ruff: noqa: E402
 from datetime import datetime
 from rag_module.kafka_client import RAGModuleMessage, SynthesizerMessage
-from rag_module.rag_process import ConversationItem
+from rag_module.utilities import ConversationItem
 
 
 @pytest.fixture
@@ -18,10 +18,10 @@ def mock_kafka_client():
     from rag_module.kafka_client import KafkaClient
 
     with (
-        patch("rag_module.kafka_client.KafkaConsumer"),
-        patch("rag_module.kafka_client.KafkaProducer"),
+        patch("rag_module.kafka_client.AIOKafkaConsumer"),
+        patch("rag_module.kafka_client.AIOKafkaProducer"),
     ):
-        client = KafkaClient()
+        client = KafkaClient("test-topic")
         client.get_message_from_queue = MagicMock()
         client.send_message_to_queue = MagicMock()
         yield client
