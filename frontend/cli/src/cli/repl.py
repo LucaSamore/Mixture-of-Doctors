@@ -1,5 +1,5 @@
 from typing import List, Optional
-from cli.client import mod_app, app
+from cli.client import mod_app
 import typer
 import sys
 import shlex
@@ -35,27 +35,32 @@ Examples:
 
 class StreamFilter:
     """Filter to handle output streams and avoid unwanted messages."""
+
     def __init__(self, original_stream):
         self.original_stream = original_stream
         self.line_buffer = ""
-        
+
     def write(self, text):
         self.line_buffer += text
-        lines = self.line_buffer.split('\n')
-        
+        lines = self.line_buffer.split("\n")
+
         if len(lines) > 1:
             for line in lines[:-1]:
                 if "Try 'python -m cli" in line:
-                    modified_line = re.sub(r"Try 'python -m cli\.[^']*'", "Try 'mod --help'", line)
-                    self.original_stream.write(modified_line + '\n')
+                    modified_line = re.sub(
+                        r"Try 'python -m cli\.[^']*'", "Try 'mod --help'", line
+                    )
+                    self.original_stream.write(modified_line + "\n")
                 else:
-                    self.original_stream.write(line + '\n')
+                    self.original_stream.write(line + "\n")
             self.line_buffer = lines[-1]
-        
+
     def flush(self):
         if self.line_buffer:
             if "Try 'python -m cli" in self.line_buffer:
-                modified_buffer = re.sub(r"Try 'python -m cli\.[^']*'", "Try 'mod --help'", self.line_buffer)
+                modified_buffer = re.sub(
+                    r"Try 'python -m cli\.[^']*'", "Try 'mod --help'", self.line_buffer
+                )
                 self.original_stream.write(modified_buffer)
             else:
                 self.original_stream.write(self.line_buffer)
@@ -66,7 +71,7 @@ class StreamFilter:
 def start_repl_mode() -> None:
     """Start the REPL mode for interactive CLI usage."""
     typer.echo(BANNER)
-    
+
     while True:
         try:
             user_input = input("Mixture-of-Doctors> ")
@@ -86,33 +91,33 @@ def parse_repl_input(user_input: str) -> Optional[List[str]]:
     """Parse user input from the REPL and return command tokens."""
     if not user_input.strip():
         return None
-    
+
     if user_input.strip().lower() in ["quit", "exit"]:
         typer.echo("Exiting MOD CLI REPL...")
         sys.exit(0)
-    
+
     if user_input.strip().lower() == "help":
         typer.echo(HELP_TEXT)
         return None
-    
+
     try:
         return shlex.split(user_input)
     except ValueError as e:
         typer.echo(f"Error parsing input: {e}")
         return None
-    
-    
+
+
 def execute_cli_command(command_args):
-    """Execute a CLI command with the given arguments."""    
+    """Execute a CLI command with the given arguments."""
     original_argv = sys.argv.copy()
     original_stdout = sys.stdout
     original_stderr = sys.stderr
-    
+
     try:
         sys.stdout = StreamFilter(original_stdout)
         sys.stderr = StreamFilter(original_stderr)
         sys.argv = command_args
-        
+
         try:
             mod_app()
         except SystemExit:

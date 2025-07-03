@@ -182,10 +182,14 @@ fi
 
 echo -e "${GREEN}CLI container started successfully.${NC}"
 
-# Deploy Nginx reverse proxy
-echo -e "${YELLOW}=== Deploying Nginx reverse proxy ===${NC}"
-deploy_service "nginx" "infrastructure/nginx" ""
-echo -e "${GREEN}Nginx deployment completed.${NC}"
+# Run ingestion if requested
+if [ "$RUN_INGESTION" = true ]; then
+    echo -e "${YELLOW}=== Running data ingestion as requested ===${NC}"
+    ./scripts/ingest_rag_data.sh
+    echo -e "${GREEN}Data ingestion completed.${NC}"
+else
+    echo -e "${YELLOW}Skipping data ingestion. To run ingestion, use './deploy.sh --ingest'${NC}"
+fi
 
 echo -e "${GREEN}Deployment script finished.${NC}"
 echo -e "${YELLOW}To stop all services run: ${NC}./undeploy.sh"

@@ -2,12 +2,16 @@
 #    uv pip compile pyproject.toml -o requirements.txt
 accelerate==1.6.0
     # via rag-module (pyproject.toml)
+aiokafka==0.12.0
+    # via rag-module (pyproject.toml)
 annotated-types==0.7.0
     # via pydantic
 anyio==4.9.0
     # via
     #   groq
     #   httpx
+async-timeout==5.0.1
+    # via aiokafka
 beautifulsoup4==4.13.3
     # via rag-module (pyproject.toml)
 certifi==2025.1.31
@@ -17,10 +21,6 @@ certifi==2025.1.31
     #   requests
 charset-normalizer==3.4.1
     # via requests
-colorama==0.4.6
-    # via
-    #   loguru
-    #   tqdm
 distro==1.9.0
     # via groq
 filelock==3.18.0
@@ -71,8 +71,6 @@ jinja2==3.1.6
     # via torch
 joblib==1.4.2
     # via scikit-learn
-kafka-python==2.1.0
-    # via rag-module (pyproject.toml)
 loguru==0.7.3
     # via rag-module (pyproject.toml)
 markupsafe==3.0.2
@@ -91,6 +89,7 @@ numpy==2.2.4
 packaging==24.2
     # via
     #   accelerate
+    #   aiokafka
     #   huggingface-hub
     #   transformers
 pillow==11.1.0
@@ -166,6 +165,7 @@ transformers==4.51.0
     # via sentence-transformers
 typing-extensions==4.13.1
     # via
+    #   aiokafka
     #   beautifulsoup4
     #   groq
     #   huggingface-hub
@@ -179,5 +179,3 @@ urllib3==2.3.0
     # via
     #   qdrant-client
     #   requests
-win32-setctime==1.2.0
-    # via loguru

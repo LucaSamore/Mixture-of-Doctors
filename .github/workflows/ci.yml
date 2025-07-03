@@ -130,6 +130,7 @@ jobs:
         
       - name: Run rag-module tests
         run: cd rag-module && uv run pytest -v tests/
+  
   test-synthesizer:
     runs-on: ubuntu-latest
     steps:

@@ -20,16 +20,16 @@ def mock_redis_client():
 
 @pytest.fixture
 def mock_kafka_producer():
-    mock = MagicMock()
-    mock.send = MagicMock()
+    mock = AsyncMock()
+    mock.send_and_wait = AsyncMock()
     return mock
 
 
 @pytest.fixture
 def mock_groq_client():
-    mock = MagicMock()
-    mock_completion = MagicMock()
-    mock.chat.completions.create = MagicMock(return_value=mock_completion)
+    mock = AsyncMock()
+    mock_completion = AsyncMock()
+    mock.chat.completions.create = AsyncMock(return_value=mock_completion)
     return mock, mock_completion
 
 
