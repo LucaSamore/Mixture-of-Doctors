@@ -68,11 +68,10 @@ class TestRagProcess:
             mock_prepare_prompt.return_value = "Mocked prompt"
 
             query = "What are the symptoms of multiple sclerosis?"
-            user_id = "test_user_123"
 
-            result = await augment(embeddings, query, user_id)
+            result = await augment(embeddings, query, True)
 
-            mock_fetch_history.assert_awaited_once_with(user_id)
+            mock_fetch_history.assert_awaited_once_with(query)
             assert mock_prepare_prompt.called
             assert result == "Mocked prompt"
 

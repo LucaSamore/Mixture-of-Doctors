@@ -864,9 +864,9 @@ name = "orchestrator"
 version = "0.1.0"
 source = { editable = "orchestrator" }
 dependencies = [
+    { name = "aiokafka" },
     { name = "fastapi", extra = ["standard"] },
     { name = "groq" },
-    { name = "kafka-python" },
     { name = "loguru" },
     { name = "ollama" },
     { name = "python-dotenv" },
@@ -882,9 +882,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiokafka", specifier = ">=0.12.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.11" },
     { name = "groq", specifier = ">=0.20.0" },
-    { name = "kafka-python", specifier = ">=2.0.6" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "ollama", specifier = ">=0.4.7" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
@@ -1490,10 +1490,14 @@ dependencies = [
     { name = "kafka-python" },
     { name = "loguru" },
     { name = "ollama" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
     { name = "redis" },
     { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
 ]
 
 [package.metadata]
@@ -1504,10 +1508,14 @@ requires-dist = [
     { name = "kafka-python", specifier = ">=2.0.6" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "ollama", specifier = ">=0.4.7" },
-    { name = "pytest", specifier = ">=8.3.5" },
-    { name = "pytest-asyncio", specifier = ">=0.26.0" },
     { name = "redis", specifier = ">=5.2.1" },
     { name = "uvicorn", specifier = ">=0.34.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.3.5" },
+    { name = "pytest-asyncio", specifier = ">=0.26.0" },
 ]
 
 [[package]]

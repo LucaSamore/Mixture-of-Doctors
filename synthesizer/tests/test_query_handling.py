@@ -28,10 +28,10 @@ class TestQueryTracking:
         """Test that first response is correctly tracked in active queries"""
         await handle_response(sample_rag_response)
 
-        assert "test_user" in active_queries
-        assert "diabetes" in active_queries["test_user"].responses
-        assert active_queries["test_user"].received_numbers == {1}
-        assert active_queries["test_user"].total == 2
+        assert "test_query_id" in active_queries
+        assert "diabetes" in active_queries["test_query_id"].responses
+        assert active_queries["test_query_id"].received_numbers == {1}
+        assert active_queries["test_query_id"].total == 2
 
         mock_synthesize.assert_not_called()
         mock_kafka_commit.assert_not_called()
@@ -49,18 +49,19 @@ class TestQueryTracking:
         """Test that completing full response set triggers synthesis"""
         # First response
         await handle_response(sample_rag_response)
+        query_id = sample_rag_response.query_id
 
-        # Second response completes the set - create a new Pydantic object instead of _replace
+        # Second response completes the set
         second_response = RagResponse(
-            user_id="test_user",
+            user_id=sample_rag_response.user_id,
+            query_id=query_id,
             disease="hypertension",
-            original_query="What is diabetes?",
+            original_query=sample_rag_response.original_query,
             response="Hypertension often coexists with diabetes.",
             stream=True,
             number=2,
             total=2,
         )
-
         await handle_response(second_response)
 
         mock_kafka_commit.assert_called_once()
@@ -81,12 +82,14 @@ class TestQueryTracking:
     ):
         """Test handling of duplicate response numbers"""
         await handle_response(sample_rag_response)
+        query_id = sample_rag_response.query_id
 
         # Duplicate response with same number
         duplicate = RagResponse(
-            user_id="test_user",
+            user_id=sample_rag_response.user_id,
+            query_id=query_id,
             disease="diabetes",
-            original_query="What is diabetes?",
+            original_query=sample_rag_response.original_query,
             response="Updated diabetes information.",
             stream=True,
             number=1,
@@ -96,7 +99,7 @@ class TestQueryTracking:
         await handle_response(duplicate)
 
         # Should still be waiting for response #2
-        assert active_queries["test_user"].received_numbers == {1}
+        assert active_queries["test_query_id"].received_numbers == {1}
         mock_synthesize.assert_not_called()
         mock_kafka_commit.assert_not_called()
 

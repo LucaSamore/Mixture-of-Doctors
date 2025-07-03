@@ -29,6 +29,16 @@ if [ "$1" == "--points" ] || [ "$1" == "-p" ] || [ "$2" == "--points" ] || [ "$2
     echo -e "${YELLOW}WARNING: Will remove all points on vector stores (data will be lost)${NC}"
 fi
 
+# Remove CLI container
+echo -e "${YELLOW}=== Removing CLI container ===${NC}"
+if docker ps -a --format '{{.Names}}' | grep -q "^mod-cli$"; then
+    docker stop mod-cli >/dev/null 2>&1
+    docker rm mod-cli >/dev/null 2>&1
+    echo -e "${GREEN}CLI container removed successfully${NC}"
+else
+    echo -e "${YELLOW}CLI container not found, skipping removal${NC}"
+fi
+
 
 echo -e "${YELLOW}=== Undeploying all Docker Swarm stacks ===${NC}"
 
@@ -146,6 +156,6 @@ if [ "$REMOVE_VOLUMES" != true ]; then
     echo -e "${YELLOW}Note: Volumes were preserved. Use './undeploy.sh --volumes' to remove all data.${NC}"
 fi
 
-if [ "$REMOVE_VOLUMES" != true ]; then
+if [ "$REMOVE_POINTS" != true ]; then
     echo -e "${YELLOW}Note: Vectore store's points were preserved. Use './undeploy.sh --points' to remove all data.${NC}"
 fi

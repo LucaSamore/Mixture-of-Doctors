@@ -31,7 +31,7 @@ class RAGProcessor:
             try:
                 context = await self._retrieve(message.rag_query)
                 prompt = await self._augment(
-                    context, message.rag_query, message.user_id
+                    context, message.user_id, message.plain_text
                 )
                 await self._generate(prompt, message)
             except Exception as e:
@@ -66,7 +66,7 @@ class RAGProcessor:
         return results
 
     async def _augment(
-        self, embeddings: List[dict], query: Query, user_id: str
+        self, embeddings: List[dict], user_id: str, plain_text: bool
     ) -> Prompt:
         conversation = await fetch_chat_history_for_user(user_id)
 
@@ -97,7 +97,19 @@ class RAGProcessor:
         combined_context = (
             f"Chat History:\n{context}\n\nEmbeddings:\n{embeddings_context}"
         )
-        params = {"query": query, "context": combined_context}
+
+        if plain_text:
+            output_format = "Please provide your response in plain text format without any Markdown formatting."
+        else:
+            output_format = (
+                "Structure your answer with appropriate headings and sections."
+            )
+
+        params = {
+            "domain": DOMAIN,
+            "context": combined_context,
+            "output_format": output_format,
+        }
         return prepare_prompt(template=PROMPT_FILE, **params)
 
     async def _generate(

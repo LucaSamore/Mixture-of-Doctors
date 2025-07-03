@@ -6,7 +6,11 @@ with (
     patch("synthesizer.utilities.RedisClient") as MockRedisClient,
     patch("synthesizer.utilities.LLMClient") as MockLLMClient,
 ):
-    from synthesizer.synthesis import generate_synthesis, synthesize_and_send_response
+    from synthesizer.synthesis import (
+        generate_synthesis,
+        synthesize_and_send_response,
+        SYNTHESIS_PROMPT_PATH,
+    )
 
 
 class TestResponseSynthesis:
@@ -22,7 +26,7 @@ class TestResponseSynthesis:
         await synthesize_and_send_response(complete_query_data)
 
         mock_generate.assert_called_once()
-        query, formatted_responses, stream_flag = mock_generate.call_args[0]
+        query, formatted_responses, stream_flag, _ = mock_generate.call_args[0]
 
         assert query == complete_query_data.original_query
 
@@ -68,15 +72,28 @@ class TestResponseSynthesis:
         mock_prepare_prompt.return_value = "Formatted prompt content"
 
         result = await generate_synthesis(
-            "What is diabetes?", "### DIABETES | RESPONSE:\nDiabetes info...", True
+            "What is diabetes?",
+            "### DIABETES | RESPONSE:\nDiabetes info...",
+            True,
+            True,
         )
 
         # Verify prompt preparation
         mock_prepare_prompt.assert_called_once()
-        assert "synth_prompt.md" in mock_prepare_prompt.call_args[0][0]
-        assert "What is diabetes?" in mock_prepare_prompt.call_args[1]["original_query"]
         assert (
-            "### DIABETES | RESPONSE:" in mock_prepare_prompt.call_args[1]["responses"]
+            mock_prepare_prompt.call_args.kwargs["template_path"]
+            == SYNTHESIS_PROMPT_PATH
+        )
+        assert (
+            "What is diabetes?"
+            == mock_prepare_prompt.call_args.kwargs["original_query"]
+        )
+        assert (
+            "### DIABETES | RESPONSE:"
+            in mock_prepare_prompt.call_args.kwargs["responses"]
+        )
+        assert (
+            "plain text format" in mock_prepare_prompt.call_args.kwargs["output_format"]
         )
 
         mock_llm_generate.assert_called_once_with(

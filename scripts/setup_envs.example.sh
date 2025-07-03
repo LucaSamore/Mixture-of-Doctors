@@ -47,7 +47,7 @@ EOF
 echo -e "${GREEN}Created${NC} orchestrator/.env"
 
 # 4. Create frontend/cli/src/cli/.env
-cat > ../frontend/cli/src/cli/.env << EOF
+cat > ../frontend/cli/.env << EOF
 REDIS_HOST=
 REDIS_PORT=
 REDIS_PASSWORD=
@@ -56,7 +56,7 @@ ORCHESTRATOR_URL=
 REQUEST_TIMEOUT=
 CHAT_HISTORY_API_URL=
 EOF
-echo -e "${GREEN}Created${NC} frontend/cli/src/cli/.env"
+echo -e "${GREEN}Created${NC} frontend/cli/.env"
 
 # 5. Create chat-history/.env
 cat > ../chat-history/.env << EOF
