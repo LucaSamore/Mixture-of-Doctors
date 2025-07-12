@@ -1,3 +1,3 @@
 {
-    "rag_modules": ["alzheimer", "parkinson", "epilepsy"]
+    "rag_modules": ["diabetes", "multiple-sclerosis", "hypertension"]
 }

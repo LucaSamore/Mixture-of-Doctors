@@ -2,6 +2,7 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import BaseModel
 from loguru import logger
 from typing import TypeAlias, Optional
+from datetime import datetime
 from dotenv import load_dotenv
 import os
 import json
@@ -36,6 +37,13 @@ class SynthesizerMessage(BaseModel):
     number: int
     total: int
     plain_text: bool = False
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, datetime):
+            return o.isoformat()
+        return super().default(o)
 
 
 def create_synthesizer_message(
@@ -114,8 +122,6 @@ class KafkaClient:
 
     async def _setup_producer(self) -> None:
         def value_serializer(v):
-            from .utilities import DateTimeEncoder
-
             return json.dumps(v, cls=DateTimeEncoder).encode("utf-8")
 
         self.producer = AIOKafkaProducer(

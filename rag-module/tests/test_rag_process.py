@@ -1,7 +1,13 @@
 import pytest
 import numpy as np
 from unittest.mock import MagicMock, patch, AsyncMock
-from rag_module.rag_process import RAGProcessor
+from rag_module.rag_process import (
+    retrieve,
+    augment,
+    generate,
+    handle_stream_response,
+    handle_batch_response,
+)
 from rag_module.utilities import prepare_prompt, fetch_chat_history_for_user
 from qdrant_client.http.models import QueryResponse, ScoredPoint
 
@@ -9,10 +15,9 @@ from qdrant_client.http.models import QueryResponse, ScoredPoint
 class TestRagProcess:
     @pytest.mark.asyncio
     async def test_retrieve(self, mock_qdrant_client):
-        # Mock RAGClients
-        mock_clients = MagicMock()
-        mock_clients.embedding_model.encode.return_value = np.array([0.1, 0.2, 0.3])
-        mock_clients.qdrant_client = mock_qdrant_client
+        # Mock embedding model
+        mock_embedding_model = MagicMock()
+        mock_embedding_model.encode.return_value = np.array([0.1, 0.2, 0.3])
 
         payload1 = {"title": "Doc 1", "source": "source1", "text": "Test content 1"}
         payload2 = {"title": "Doc 2", "source": "source2", "text": "Test content 2"}
@@ -27,18 +32,16 @@ class TestRagProcess:
 
         mock_qdrant_client.query_points = AsyncMock(return_value=mock_query_response)
 
-        # Create RAGProcessor instance
-        processor = RAGProcessor(mock_clients)
+        with patch.dict("os.environ", {"RAG_DOMAIN": "test"}):
+            query = "Test query"
+            results = await retrieve(query, mock_embedding_model, mock_qdrant_client)
 
-        query = "Test query"
-        results = await processor._retrieve(query)
+            mock_embedding_model.encode.assert_called_once_with(query)
+            mock_qdrant_client.query_points.assert_awaited_once()
 
-        mock_clients.embedding_model.encode.assert_called_once_with(query)
-        mock_qdrant_client.query_points.assert_awaited_once()
-
-        assert len(results) == 2
-        assert results[0] == payload1
-        assert results[1] == payload2
+            assert len(results) == 2
+            assert results[0] == payload1
+            assert results[1] == payload2
 
     @pytest.mark.asyncio
     async def test_augment(self, sample_conversation_items):
@@ -63,16 +66,13 @@ class TestRagProcess:
                 mock_fetch_history,
             ),
             patch("rag_module.rag_process.prepare_prompt") as mock_prepare_prompt,
+            patch.dict("os.environ", {"RAG_DOMAIN": "test"}),
         ):
             mock_prepare_prompt.return_value = "Mocked prompt"
 
-            # Mock RAGClients
-            mock_clients = MagicMock()
-            processor = RAGProcessor(mock_clients)
-
             user_id = "test_user_123"
 
-            result = await processor._augment(embeddings, user_id, True)
+            result = await augment(embeddings, user_id, True)
 
             mock_fetch_history.assert_awaited_once_with(user_id)
             mock_prepare_prompt.assert_called_once()
@@ -137,19 +137,18 @@ class TestRagProcess:
 
         mock_stream.__aiter__.return_value = [mock_chunk1, mock_chunk2].__iter__()
 
-        # Mock RAGClients
-        mock_clients = MagicMock()
-        mock_clients.llm_groq_client.chat.completions.create = AsyncMock(
-            return_value=mock_stream
-        )
-        mock_clients.redis_client.xadd = AsyncMock()
-
-        processor = RAGProcessor(mock_clients)
+        # Mock clients
+        mock_groq_client = MagicMock()
+        mock_groq_client.chat.completions.create = AsyncMock(return_value=mock_stream)
+        mock_redis_client = MagicMock()
+        mock_redis_client.xadd = AsyncMock()
 
         prompt = "System prompt"
-        await processor._generate(prompt, incoming_message)
+        await handle_stream_response(
+            prompt, incoming_message, mock_groq_client, mock_redis_client
+        )
 
-        mock_clients.llm_groq_client.chat.completions.create.assert_awaited_once_with(
+        mock_groq_client.chat.completions.create.assert_awaited_once_with(
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": incoming_message.rag_query},
@@ -158,9 +157,9 @@ class TestRagProcess:
             stream=True,
         )
 
-        assert mock_clients.redis_client.xadd.call_count == 2
+        assert mock_redis_client.xadd.call_count == 2
 
-        mock_clients.redis_client.xadd.assert_any_call(
+        mock_redis_client.xadd.assert_any_call(
             name=incoming_message.user_id,
             fields={
                 "query": incoming_message.original_query,
@@ -169,7 +168,7 @@ class TestRagProcess:
             },
         )
 
-        mock_clients.redis_client.xadd.assert_any_call(
+        mock_redis_client.xadd.assert_any_call(
             name=incoming_message.user_id,
             fields={
                 "query": incoming_message.original_query,
@@ -185,19 +184,20 @@ class TestRagProcess:
 
         mock_completion = MagicMock()
 
-        # Mock RAGClients
-        mock_clients = MagicMock()
-        mock_clients.llm_groq_client.chat.completions.create = AsyncMock(
+        # Mock clients
+        mock_groq_client = MagicMock()
+        mock_groq_client.chat.completions.create = AsyncMock(
             return_value=mock_completion
         )
-        mock_clients.kafka_client.send_message_to_queue = AsyncMock()
-
-        processor = RAGProcessor(mock_clients)
+        mock_kafka_client = MagicMock()
+        mock_kafka_client.send_message_to_queue = AsyncMock()
 
         prompt = "System prompt with context"
-        await processor._generate(prompt, incoming_message)
+        await handle_batch_response(
+            prompt, incoming_message, mock_groq_client, mock_kafka_client
+        )
 
-        mock_clients.llm_groq_client.chat.completions.create.assert_awaited_once_with(
+        mock_groq_client.chat.completions.create.assert_awaited_once_with(
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": incoming_message.rag_query},
@@ -207,6 +207,41 @@ class TestRagProcess:
             stream=False,
         )
 
-        mock_clients.kafka_client.send_message_to_queue.assert_called_once_with(
+        mock_kafka_client.send_message_to_queue.assert_called_once_with(
             mock_completion, incoming_message
         )
+
+    @pytest.mark.asyncio
+    async def test_generate_routing(self, sample_rag_message):
+        # Test routing to stream when total=1
+        incoming_message = sample_rag_message
+        incoming_message.total = 1
+
+        with patch("rag_module.rag_process.handle_stream_response") as mock_stream:
+            mock_groq_client = MagicMock()
+            mock_redis_client = MagicMock()
+            mock_kafka_client = MagicMock()
+
+            await generate(
+                "test prompt",
+                incoming_message,
+                mock_groq_client,
+                mock_redis_client,
+                mock_kafka_client,
+            )
+
+            mock_stream.assert_called_once()
+
+        # Test routing to batch when total>1
+        incoming_message.total = 5
+
+        with patch("rag_module.rag_process.handle_batch_response") as mock_batch:
+            await generate(
+                "test prompt",
+                incoming_message,
+                mock_groq_client,
+                mock_redis_client,
+                mock_kafka_client,
+            )
+
+            mock_batch.assert_called_once()

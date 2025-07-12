@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 from loguru import logger
 import os
 import redis.asyncio as redis
-import json
 import string
 import httpx
 
@@ -44,55 +43,41 @@ async def fetch_chat_history_for_user(user_id: str) -> List[ConversationItem]:
         return []
 
 
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, datetime):
-            return o.isoformat()
-        return super().default(o)
-
-
 def prepare_prompt(template: str, **kwargs) -> str:
-    with open(template, "r") as f:
-        content = f.read()
-    return string.Template(content).substitute(kwargs)
+    try:
+        with open(template, "r") as f:
+            content = f.read()
+        return string.Template(content).substitute(kwargs)
+    except Exception as e:
+        logger.error(f"Error while preparing prompt: {e}")
+        return ""
 
 
-class RAGClients:
-    kafka_client: KafkaClient
-    qdrant_client: AsyncQdrantClient
-    llm_groq_client: AsyncGroq
-    redis_client: redis.Redis
-    embedding_model: SentenceTransformer
+async def init_kafka_client() -> KafkaClient:
+    logger.info("Initializing Kafka client")
+    return await KafkaClient.create()
 
-    @classmethod
-    async def create(cls) -> "RAGClients":
-        self = cls()
-        await self._init_kafka_client()
-        self._init_qdrant_client()
-        self._init_groq_client()
-        self._init_redis_client()
-        self._init_embedding_model()
-        return self
 
-    async def _init_kafka_client(self) -> None:
-        self.kafka_client = await KafkaClient.create()
+async def init_qdrant_client() -> AsyncQdrantClient:
+    logger.info("Initializing Qdrant client")
+    port = (lambda p: int(p) if p else 6333)(os.getenv("QDRANT_PORT", 6333))
+    return AsyncQdrantClient(url=f"http://{os.getenv('QDRANT_HOST')}:{port}")
 
-    def _init_qdrant_client(self) -> None:
-        port = (lambda p: int(p) if p else 6333)(os.getenv("QDRANT_PORT", 6333))
-        self.qdrant_client = AsyncQdrantClient(
-            url=f"http://{os.getenv('QDRANT_HOST')}:{port}"
-        )
 
-    def _init_groq_client(self) -> None:
-        self.llm_groq_client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
+async def init_groq_client() -> AsyncGroq:
+    logger.info("Initializing Groq client")
+    return AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
 
-    def _init_redis_client(self) -> None:
-        self.redis_client = redis.Redis(
-            host=os.getenv("REDIS_HOST", "redis"),
-            port=(lambda p: int(p) if p else 6379)(os.getenv("REDIS_PORT")),
-            password=os.getenv("REDIS_PASSWORD"),
-            decode_responses=True,
-        )
 
-    def _init_embedding_model(self) -> None:
-        self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+async def init_redis_client() -> redis.Redis:
+    logger.info("Initializing Redis client")
+    return redis.Redis(
+        host=os.getenv("REDIS_HOST", "redis"),
+        port=(lambda p: int(p) if p else 6379)(os.getenv("REDIS_PORT")),
+        password=os.getenv("REDIS_PASSWORD"),
+        decode_responses=True,
+    )
+
+
+async def init_embedding_model() -> SentenceTransformer:
+    return SentenceTransformer("all-MiniLM-L6-v2")

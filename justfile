@@ -2,6 +2,8 @@ alias s := setup
 alias p := pre_commit
 alias l := lint
 alias f := format
+alias d := deploy
+alias u := undeploy
 
 install:
 	uv sync --all-packages
@@ -19,3 +21,9 @@ lint:
 	
 format:
 	uv run ruff format
+
+deploy:
+	./scripts/deploy.sh
+
+undeploy:
+	./scripts/undeploy.sh
