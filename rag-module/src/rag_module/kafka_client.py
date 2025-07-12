@@ -80,6 +80,11 @@ class KafkaClient:
     async def get_message_from_queue(self) -> Optional[RAGModuleMessage]:
         logger.info(f"Reading message from {self.topic}")
         try:
+            """
+            msg = await self.consumer.getone()
+            logger.info(f"Message received: {msg.value}")
+            return RAGModuleMessage.model_validate(msg.value)
+            """
             async for msg in self.consumer:
                 return RAGModuleMessage.model_validate(msg.value)
         except Exception as e:

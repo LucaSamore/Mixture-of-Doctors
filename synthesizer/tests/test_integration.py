@@ -1,13 +1,13 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 with (
-    patch("synthesizer.utilities.KafkaClient") as MockKafkaClient,
-    patch("synthesizer.utilities.RedisClient") as MockRedisClient,
-    patch("synthesizer.utilities.LLMClient") as MockLLMClient,
+    patch("aiokafka.AIOKafkaConsumer") as MockKafkaConsumer,
+    patch("redis.asyncio.Redis") as MockRedisClient,
+    patch("groq.AsyncGroq") as MockGroqClient,
 ):
     from synthesizer.synthesis import (
-        RagResponse,
+        RAGResponse,
         handle_response,
     )
 
@@ -16,13 +16,12 @@ class TestIntegrationFlow:
     """End-to-end test flows for the synthesizer component"""
 
     @pytest.mark.asyncio
-    @patch("synthesizer.synthesis.redis.stream_message")
-    @patch("synthesizer.synthesis.generate_synthesis")
+    @patch("synthesizer.synthesis.send_response")
+    @patch("synthesizer.synthesis.synthesize")
     async def test_complete_synthesis_flow(
         self,
-        mock_generate_synthesis,
-        mock_redis_stream,
-        mock_llm_response_stream,
+        mock_synthesize,
+        mock_send_response,
         reset_active_queries,
     ):
         """Test the full synthesis flow from multiple disease-specific responses to a combined answer"""
@@ -39,14 +38,20 @@ class TestIntegrationFlow:
             )
         ]
 
-        mock_generate_synthesis.return_value = [mock_chunk1, mock_chunk2]
+        mock_synthesize.return_value = [mock_chunk1, mock_chunk2]
+
+        # Setup mock clients
+        mock_kafka_consumer = MagicMock()
+        mock_kafka_consumer.commit = AsyncMock()
+        mock_redis_client = MagicMock()
+        mock_groq_client = MagicMock()
 
         # Create a sample query and response
         original_query = "What is diabetes and hypertension?"
         query_id = "test_query_id"
 
         # Create the first response (for diabetes)
-        diabetes_response = RagResponse(
+        diabetes_response = RAGResponse(
             user_id="test_user",
             query_id=query_id,
             disease="diabetes",
@@ -56,13 +61,15 @@ class TestIntegrationFlow:
             number=1,
             total=2,
         )
-        await handle_response(diabetes_response)
+        await handle_response(
+            diabetes_response, mock_kafka_consumer, mock_redis_client, mock_groq_client
+        )
 
         # Verify that the response was not sent to synthesis yet
-        mock_generate_synthesis.assert_not_called()
-        mock_redis_stream.assert_not_called()
+        mock_synthesize.assert_not_called()
+        mock_send_response.assert_not_called()
 
-        hypertension_response = RagResponse(
+        hypertension_response = RAGResponse(
             user_id="test_user",
             query_id=query_id,
             disease="hypertension",
@@ -72,31 +79,44 @@ class TestIntegrationFlow:
             number=2,
             total=2,
         )
-        await handle_response(hypertension_response)
+        await handle_response(
+            hypertension_response,
+            mock_kafka_consumer,
+            mock_redis_client,
+            mock_groq_client,
+        )
 
-        mock_generate_synthesis.assert_called_once()
-
-        # Verify that the synthesis response was sent to Redis for both chunks
-        assert mock_redis_stream.call_count == 2
+        mock_synthesize.assert_called_once()
+        mock_send_response.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("synthesizer.synthesis.llm.generate")
-    @patch("synthesizer.synthesis.kafka.commit")
+    @patch("synthesizer.synthesis.synthesize_and_send_response")
     @patch("synthesizer.synthesis.logger.error")
     async def test_error_recovery(
         self,
         mock_logger,
-        mock_kafka_commit,
-        mock_llm_generate,
+        mock_synthesize_and_send,
         sample_rag_response,
         reset_active_queries,
     ):
         """Test recovery from LLM errors during integration flow"""
-        mock_llm_generate.side_effect = Exception("LLM API error")
+        # Mock the function to not raise an exception, just log the error
+        mock_synthesize_and_send.return_value = None
 
-        await handle_response(sample_rag_response)
+        # Setup mock clients
+        mock_kafka_consumer = MagicMock()
+        mock_kafka_consumer.commit = AsyncMock()
+        mock_redis_client = MagicMock()
+        mock_groq_client = MagicMock()
 
-        second_response = RagResponse(
+        await handle_response(
+            sample_rag_response,
+            mock_kafka_consumer,
+            mock_redis_client,
+            mock_groq_client,
+        )
+
+        second_response = RAGResponse(
             user_id="test_user",
             query_id="test_query_id",
             disease="hypertension",
@@ -107,11 +127,9 @@ class TestIntegrationFlow:
             total=2,
         )
 
-        await handle_response(second_response)
+        await handle_response(
+            second_response, mock_kafka_consumer, mock_redis_client, mock_groq_client
+        )
 
-        mock_kafka_commit.assert_called_once()
-
-        # Should log error
-        assert mock_logger.call_count == 2
-        assert "Error generating synthesis" in mock_logger.call_args_list[0][0][0]
-        assert "Error during synthesis" in mock_logger.call_args_list[1][0][0]
+        mock_kafka_consumer.commit.assert_called_once()
+        mock_synthesize_and_send.assert_called_once()

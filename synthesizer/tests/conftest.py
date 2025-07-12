@@ -3,11 +3,11 @@ from unittest.mock import MagicMock, patch, AsyncMock
 
 
 with (
-    patch("synthesizer.utilities.KafkaConsumer", MagicMock()),
-    patch("synthesizer.utilities.LLMClient", MagicMock()),
-    patch("synthesizer.utilities.RedisClient", MagicMock()),
+    patch("aiokafka.AIOKafkaConsumer", MagicMock()),
+    patch("groq.AsyncGroq", MagicMock()),
+    patch("redis.asyncio.Redis", MagicMock()),
 ):
-    from synthesizer.synthesis import RagResponse, QueryData
+    from synthesizer.synthesis import RAGResponse, QueryData
 
 
 @pytest.fixture
@@ -35,12 +35,9 @@ def mock_llm_client():
 @pytest.fixture(autouse=True)
 def mock_services():
     """Automatically mock all external services for every test"""
-    with (
-        patch("synthesizer.synthesis.kafka", MagicMock()),
-        patch("synthesizer.synthesis.redis", MagicMock()),
-        patch("synthesizer.synthesis.llm", MagicMock()),
-    ):
-        yield
+    # These patches are removed since the corresponding attributes don't exist in synthesis.py
+    # The individual test files now handle their own mocking
+    yield
 
 
 @pytest.fixture
@@ -56,7 +53,7 @@ def reset_active_queries():
 @pytest.fixture
 def sample_rag_response():
     """Create a sample response from a disease-specific RAG module"""
-    return RagResponse(
+    return RAGResponse(
         user_id="test_user",
         query_id="test_query_id",
         disease="diabetes",
