@@ -11,10 +11,10 @@ from .exceptions import ReasoningException, ActingException
 from datetime import datetime
 from typing import List
 from groq import AsyncGroq
+from groq.types.chat import ChatCompletionMessageParam
 from aiokafka import AIOKafkaProducer
 import redis.asyncio as redis
 import httpx
-import json
 import uuid
 
 REASONING_ATTEMPTS = 5
@@ -90,13 +90,17 @@ def create_rag_module_message(
 
 async def reason(chatbot_query: ChatbotQuery, llm: AsyncGroq) -> ReasoningOutcome:
     logger.info(f"Diseases: {diseases}")
-    params = {"query": chatbot_query.query, "diseases": diseases}
-    prompt = prepare_prompt(template=PromptTemplate.PLANNING.value, **params)
+    prompt = prepare_prompt(
+        template=PromptTemplate.PLANNING.value, **{"diseases": diseases}
+    )
     for i in range(REASONING_ATTEMPTS):
         try:
             logger.info(f"Reasoning attempt #{i + 1}/{REASONING_ATTEMPTS}")
             chat_completion = await llm.chat.completions.create(
-                messages=[{"role": "system", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": chatbot_query.query},
+                ],
                 model="llama-3.3-70b-versatile",
                 stream=False,
             )
@@ -183,25 +187,30 @@ async def generate_answer(
     llm: AsyncGroq,
     redis_client: redis.Redis,
 ) -> None:
-    context = json.dumps([item.model_dump_json() for item in conversation], indent=4)
-    logger.info(f"Context: {context}")
-
     if chatbot_query.plain_text:
         output_format = "Please provide your response in plain text format without any Markdown formatting."
     else:
         output_format = "Structure your answer with appropriate headings and sections."
 
-    params = {
-        "query": chatbot_query.query,
-        "context": context,
-        "output_format": output_format,
-    }
-    prompt = prepare_prompt(template=PromptTemplate.EASY_QUERIES.value, **params)
+    system_prompt = prepare_prompt(
+        template=PromptTemplate.EASY_QUERIES.value, **{"output_format": output_format}
+    )
+
+    messages: List[ChatCompletionMessageParam] = [
+        {"role": "system", "content": system_prompt}
+    ]
+    for qap in conversation:
+        messages.extend(
+            [
+                {"role": "user", "content": qap.question},
+                {"role": "assistant", "content": qap.answer},
+            ]
+        )
+    messages.append({"role": "user", "content": chatbot_query.query})
+
+    logger.info(f"Messages\n\n: {messages}")
     stream = await llm.chat.completions.create(
-        messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": chatbot_query.query},
-        ],
+        messages=messages,
         model="llama-3.3-70b-versatile",
         stream=True,
     )

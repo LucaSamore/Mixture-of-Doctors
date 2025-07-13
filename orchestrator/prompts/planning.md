@@ -21,9 +21,6 @@ Analyze the medical query below and classify it into one of three categories:
 4. For MEDIUM and HARD classifications, explicitly list the disease(s) whose RAG modules should be consulted.
 5. For HARD classifications, decompose the original query into meaningful subqueries for each relevant disease module.
 
-## Query to Classify
-\${query}
-
 ## Output Format
 IMPORTANT: Return ONLY a valid JSON object without any surrounding text, explanations, or commentary. Your complete response must be a single parseable JSON object with the following structure:
 
