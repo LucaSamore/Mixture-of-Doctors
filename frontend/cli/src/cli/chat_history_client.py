@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from dotenv import load_dotenv
 from typing import Callable
+from loguru import logger
 
 load_dotenv()
 
@@ -28,12 +29,14 @@ class ChatHistoryClient:
 
     def create_chat(self, username: str, print_fn: Callable):
         try:
+            self.delete_chat_history(username, print_fn)
+
             response = requests.post(
                 f"{self.base_url}/requests/", params={"username": username}
             )
 
             if response.status_code != 200:
-                print_fn(
+                logger.error(
                     f"Failed to create chat: {response.status_code} - {response.text}"
                 )
                 return
@@ -58,7 +61,7 @@ class ChatHistoryClient:
             if response.status_code == 200:
                 return ConversationModel.model_validate(response.json())
             else:
-                print_fn(
+                logger.error(
                     f"Failed to create/update chat: {response.status_code} - {response.text}"
                 )
                 return None
@@ -78,7 +81,7 @@ class ChatHistoryClient:
             elif response.status_code == 404:
                 return None
             else:
-                print_fn(
+                logger.error(
                     f"Failed to get chat history: {response.status_code} - {response.text}"
                 )
                 return None
@@ -94,7 +97,7 @@ class ChatHistoryClient:
             if response.status_code == 204:
                 return True
             else:
-                print_fn(
+                logger.error(
                     f"Failed to delete chat history: {response.status_code} - {response.text}"
                 )
                 return False

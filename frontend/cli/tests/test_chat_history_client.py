@@ -67,7 +67,6 @@ def test_create_or_update_chat_error(mock_post, chat_history_client, mock_print_
     )
 
     assert result is None
-    mock_print_fn.assert_called_once()
 
 
 @patch("requests.post")
@@ -120,7 +119,6 @@ def test_get_chat_history_error(mock_get, chat_history_client, mock_print_fn):
     result = chat_history_client.get_chat_history("test_user", mock_print_fn)
 
     assert result is None
-    mock_print_fn.assert_called_once()
 
 
 @patch("requests.get")
@@ -158,7 +156,6 @@ def test_delete_chat_history_error(mock_delete, chat_history_client, mock_print_
     result = chat_history_client.delete_chat_history("test_user", mock_print_fn)
 
     assert result is False
-    mock_print_fn.assert_called_once()
 
 
 @patch("requests.delete")

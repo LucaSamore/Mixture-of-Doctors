@@ -1,7 +1,8 @@
+from typing import Optional
 from typer import Option
 from cli.stream_client import StreamClient
 from cli import write_username_to_file, read_username_from_file
-from cli.chat_history_client import ChatHistoryClient
+from cli.chat_history_client import ChatHistoryClient, ConversationModel
 from cli.typer_config import set_usage_command
 import os
 import typer
@@ -59,11 +60,11 @@ def chat(username: str) -> None:
     """
     Start a chat with the virtual doctor.
     """
-    username_from_file = read_username_from_file()
-    if username_from_file is None:
+    history = chat_history_client.get_chat_history(username, typer.echo)
+    if history is None:
         new_chat(username)
     else:
-        restore_chat(username_from_file)
+        restore_chat(username, history)
 
 
 @mod_app.command()
@@ -130,15 +131,16 @@ def new_chat(username: str):
     print_help_message()
 
 
-def restore_chat(username: str):
+def restore_chat(username: str, history: Optional[ConversationModel] = None):
     write_username_to_file(username)
-    display_chat_history(username)
+    display_chat_history(username, history)
     print_help_message()
 
 
-def display_chat_history(username: str):
-    history = chat_history_client.get_chat_history(username, typer.echo)
-
+def display_chat_history(username: str, history: Optional[ConversationModel] = None):
+    # Retrieve chat history if not provided
+    if history is None:
+        history = chat_history_client.get_chat_history(username, typer.echo)
     if history and history.conversation:
         typer.echo("\n=== Chat History ===")
         for i, item in enumerate(history.conversation):
