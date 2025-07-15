@@ -13,6 +13,9 @@ load_dotenv()
 type Query = str
 
 
+ATTEMPTS = 5
+
+
 class Response(BaseModel):
     query: str
     response: str
@@ -64,6 +67,7 @@ class StreamClient:
             return None
 
     def send_request(self, query: Query, user_id: str, print_fn: Callable) -> None:
+        ok = False
         payload = {"query": query, "user_id": user_id, "plain_text": True}
 
         # Get the last message ID before sending the request
@@ -71,30 +75,33 @@ class StreamClient:
 
         try:
             logger.info(f"Sending request to {self.orchestrator_url}")
-            response = requests.post(
-                self.orchestrator_url, json=payload, timeout=self.request_timeout
-            )
 
-            match response.status_code:
-                case 204:
-                    logger.info("Request accepted, reading from stream...")
-                    self.read_from_stream(user_id, print_fn)
-                case 500:
-                    logger.error(
-                        f"Server error: {response.status_code} - {response.text}"
-                    )
-                    print_fn(
-                        f"The server encountered a problem. Status code: {response.status_code}",
-                        "error",
-                    )
-                case _:
-                    logger.warning(
-                        f"Unexpected status code: {response.status_code} - {response.text}"
-                    )
-                    print_fn(
-                        f"Unexpected response (status {response.status_code})",
-                        "warning",
-                    )
+            while not ok:
+                response = requests.post(
+                    self.orchestrator_url, json=payload, timeout=self.request_timeout
+                )
+
+                match response.status_code:
+                    case 204:
+                        logger.info("Request accepted, reading from stream...")
+                        ok = self.read_from_stream(user_id, print_fn)
+
+                    case 500:
+                        logger.error(
+                            f"Server error: {response.status_code} - {response.text}"
+                        )
+                        print_fn(
+                            f"The server encountered a problem. Status code: {response.status_code}",
+                            "error",
+                        )
+                    case _:
+                        logger.warning(
+                            f"Unexpected status code: {response.status_code} - {response.text}"
+                        )
+                        print_fn(
+                            f"Unexpected response (status {response.status_code})",
+                            "warning",
+                        )
 
         except requests.Timeout:
             logger.error("Request timed out")
@@ -118,24 +125,32 @@ class StreamClient:
                 self.last_message_processed_id = "0"
                 logger.debug("No previous messages found, starting from 0")
 
-    def read_from_stream(self, user_id: str, print_fn: Callable) -> None:
+    def read_from_stream(self, user_id: str, print_fn: Callable) -> bool:
         redis_client = self.create_redis_connection()
         if redis_client is None:
-            return
+            return False
         logger.debug(f"Reading from stream key: {user_id}")
 
         read_id = self.starting_point(user_id, redis_client)
         logger.debug(f"Starting from message ID: {read_id}")
         try:
             while True:
-                response = redis_client.xread({user_id: read_id}, count=10, block=2000)
+                logger.info("Calling Redis XREAD... ")
+                response = None
+                for i in range(ATTEMPTS):
+                    logger.info(f"#{i + 1} Attempting to read messages...")
+                    response = redis_client.xread(
+                        {user_id: read_id}, count=10, block=2000
+                    )
 
-                logger.debug(f"Response type: {type(response)}, Value: {response}")
+                    logger.debug(f"Response type: {type(response)}, Value: {response}")
+
+                    if response:
+                        break
 
                 if not response:
                     logger.debug("No messages received, waiting...")
-                    time.sleep(1)
-                    continue
+                    return False
 
                 # Check if we need to stop processing messages
                 should_stop = self.process_redis_response(response, print_fn)
@@ -149,13 +164,16 @@ class StreamClient:
                         self.last_message_processed_id
                     )  # Start from last processed message
 
+            return True
         except RedisError as e:
             logger.error(f"Redis error: {e}")
             print_fn(f"Error connecting to message stream: {str(e)}", "error")
+            return False
 
         except Exception as e:
             logger.exception("Unexpected error")
             print_fn(f"Unexpected error: {str(e)}", "error")
+            return False
 
     def starting_point(self, user_id: str, redis_client: Redis) -> str:
         if not self.last_message_processed_id:
