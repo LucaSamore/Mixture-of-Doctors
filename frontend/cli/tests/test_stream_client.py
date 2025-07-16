@@ -52,14 +52,12 @@ class TestSendRequest:
             pass
 
         def fake_read_from_stream(*args, **kwargs):
-            pass
+            return True  # Return True to break the while loop
 
         with patch.object(stream_client, "_update_last_message_id", new=fake_update):
             with patch.object(
                 stream_client, "read_from_stream", new=fake_read_from_stream
             ):
-                mock_print_fn("Request accepted, waiting for response...")
-
                 stream_client.send_request(query, user_id, mock_print_fn)
 
                 mock_post.assert_called_once_with(
@@ -76,9 +74,20 @@ class TestSendRequest:
         mock_post.return_value = mock_response
 
         with patch.object(stream_client, "_update_last_message_id"):
-            stream_client.send_request("query", "user_id", mock_print_fn)
+            # Since this is a server error, the while loop will continue indefinitely
+            # We need to simulate that the server keeps returning 500
+            # Let's limit this by having requests.post called multiple times and then stop
+            mock_post.side_effect = [mock_response] * 3 + [Exception("Test stopped")]
 
-            mock_print_fn.assert_called_once_with(
+            try:
+                stream_client.send_request("query", "user_id", mock_print_fn)
+            except Exception as e:
+                if str(e) != "Test stopped":
+                    raise
+
+            # Check that the error message was called (should be called 3 times)
+            assert mock_print_fn.call_count == 3
+            mock_print_fn.assert_called_with(
                 "The server encountered a problem. Status code: 500", "error"
             )
 
@@ -92,9 +101,18 @@ class TestSendRequest:
         mock_post.return_value = mock_response
 
         with patch.object(stream_client, "_update_last_message_id"):
-            stream_client.send_request("query", "user_id", mock_print_fn)
+            # Similar to server error, limit the calls to avoid infinite loop
+            mock_post.side_effect = [mock_response] * 3 + [Exception("Test stopped")]
 
-            mock_print_fn.assert_called_once_with(
+            try:
+                stream_client.send_request("query", "user_id", mock_print_fn)
+            except Exception as e:
+                if str(e) != "Test stopped":
+                    raise
+
+            # Check that the warning message was called (should be called 3 times)
+            assert mock_print_fn.call_count == 3
+            mock_print_fn.assert_called_with(
                 "Unexpected response (status 400)", "warning"
             )
 
@@ -127,11 +145,17 @@ class TestSendRequest:
 
 class TestStartingPoint:
     def test_starting_point_with_empty_last_processed(self, stream_client):
-        stream_client.last_message_processed_id = ""
+        stream_client.last_message_processed_id = None
         mock_redis = MagicMock()
         assert stream_client.starting_point("test_user", mock_redis) == "0"
 
     def test_starting_point_with_last_processed(self, stream_client):
+        stream_client.last_message_processed_id = "1234-0"
+        mock_redis = MagicMock()
+        mock_redis.xrange.return_value = [("1235-0", "some_data")]
+        assert stream_client.starting_point("test_user", mock_redis) == "1235-0"
+
+    def test_starting_point_with_last_processed_no_new_messages(self, stream_client):
         stream_client.last_message_processed_id = "1234-0"
         mock_redis = MagicMock()
         mock_redis.xrange.return_value = []
@@ -183,19 +207,40 @@ class TestProcessMessage:
 
 class TestProcessRedisResponse:
     def test_process_redis_response_valid_format(self, stream_client, mock_print_fn):
-        stream_client.last_message_processed_id = ""
+        stream_client.last_message_processed_id = None
         valid_data = json.dumps(
             {"query": "test", "response": "Test response", "done": "true"}
         )
         mock_response = [["stream_name", [("1234-0", valid_data)]]]
 
         with patch.object(stream_client, "process_message") as mock_process_message:
-            stream_client.process_redis_response(mock_response, mock_print_fn)
+            mock_process_message.return_value = False  # Don't stop processing
+            result = stream_client.process_redis_response(mock_response, mock_print_fn)
 
             mock_process_message.assert_called_once_with(
                 "1234-0", valid_data, mock_print_fn
             )
             assert stream_client.last_message_processed_id == "1234-0"
+            assert result is False  # Should not stop processing
+
+    def test_process_redis_response_with_stop_signal(
+        self, stream_client, mock_print_fn
+    ):
+        stream_client.last_message_processed_id = None
+        valid_data = json.dumps(
+            {"query": "test", "response": "Test response", "done": "stop"}
+        )
+        mock_response = [["stream_name", [("1234-0", valid_data)]]]
+
+        with patch.object(stream_client, "process_message") as mock_process_message:
+            mock_process_message.return_value = True  # Signal to stop processing
+            result = stream_client.process_redis_response(mock_response, mock_print_fn)
+
+            mock_process_message.assert_called_once_with(
+                "1234-0", valid_data, mock_print_fn
+            )
+            assert stream_client.last_message_processed_id == "1234-0"
+            assert result is True  # Should stop processing
 
     def test_process_redis_response_invalid_format_response_level(
         self, stream_client, mock_print_fn
