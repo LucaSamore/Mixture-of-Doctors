@@ -142,8 +142,6 @@ dependencies = [
     { name = "loguru" },
     { name = "motor" },
     { name = "pydantic" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
     { name = "python-dotenv" },
     { name = "uvicorn" },
 ]
@@ -160,8 +158,6 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "motor", specifier = ">=3.7.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
-    { name = "pytest", specifier = ">=8.3.5" },
-    { name = "pytest-asyncio", specifier = ">=0.25.3" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "uvicorn", specifier = ">=0.34.0" },
 ]
