@@ -1,134 +1,161 @@
-TODO IMMAGINI
 # Mixture of Doctors
 
-An agentic-RAG system for self-management of chronic diseases
+An agentic-RAG system for self-management of chronic diseases.
 
-## Introduction
+## 📖 Overview
 
-Mixture of Doctors (MoD) is an advanced agentic-RAG system designed to support patients in managing chronic conditions through accurate and empathetic guidance. The system leverages specialized "doctor" agents, each focused on a specific condition (diabetes, multiple sclerosis, and hypertension), to provide reliable information while addressing key challenges in healthcare AI:
+Supporting patients in the self-management of chronic diseases requires continuous, personalized guidance, a task for which LLM-powered chatbots show immense promise. However, their deployment is contingent on overcoming a dual challenge: the inherent risk of LLM "hallucinations" and the architectural complexity of building a system that can manage multiple medical domains securely.
 
-- **Hallucination mitigation** through Retrieval-Augmented Generation
-- **Privacy protection** with locally processed open-source LLMs
-- **Cross-condition expertise** for comprehensive care
+**Mixture of Doctors (MoD)** is an agentic-RAG system designed to address these challenges in tandem. Its core mission is to provide trustworthy, accurate, and empathetic guidance to patients with chronic conditions.
 
-## Architecture
+### Key Features
+- **🩺 Specialized Expertise**: The system employs multiple "Doctor" components, each an expert on a specific chronic disease (e.g., Diabetes, Multiple Sclerosis, Hypertension).
+- **🛡️ Hallucination Mitigation**: Responses are grounded in curated medical knowledge bases using a Retrieval-Augmented Generation (RAG) pipeline, ensuring factual accuracy.
+- **🧠 Agentic Orchestration**: A central Orchestrator dynamically analyzes user queries, decomposes complex cross-domain questions, and routes them to the appropriate specialists.
+- **🔐 Data Privacy**: The system is built with open-source technologies and designed for local deployment, ensuring sensitive user data remains secure.
 
-MoD uses an Orchestrator-workers architecture where:
-- An **Orchestrator** analyzes queries and routes them to appropriate specialists
-- **Doctor modules** retrieve relevant information and generate responses
-- A **Synthesizer** combines responses for cross-domain questions
+## 🏗️ System Architecture
 
-Communication uses Kafka for messaging, Redis for streaming, and Qdrant for vector storage.
+MoD is built upon a decoupled **Orchestrator-worker architecture** that leverages asynchronous messaging for resilience and scalability.
 
-## Deployment
+### Core Components
+- **Orchestrator**: The central coordination hub. It receives user queries, uses an LLM to determine query complexity (`easy`, `medium`, `hard`), and delegates tasks to the appropriate workers.
+- **Doctor (RAG Module)**: A specialized worker focused on a single chronic disease. It uses a RAG pipeline to generate evidence-based answers from a dedicated vector database.
+- **Synthesizer**: An aggregation component that receives responses from multiple Doctors for `hard` (cross-domain) queries and synthesizes them into a single, cohesive answer.
+- **Chat History**: A dedicated service for persisting and retrieving user conversation logs, providing long-term memory for the system.
 
-MoD uses Docker Swarm for orchestration and service management, providing service isolation, scalability, and simplified dependency management.
+### Interaction Flow
+- **Easy Queries**: Handled synchronously by the Orchestrator for immediate, low-latency responses.
+- **Medium & Hard Queries**: Processed asynchronously via a publish-subscribe pattern using a message broker to ensure resilience and fault tolerance.
 
-### System Deployment
+## 🛠️ Technologies Used
 
-1. Ensure Docker and Docker Swarm are installed and properly configured
-2. Clone the repository:
-   ```bash
-   git clone https://github.com/LucaSamore/Mixture-of-Doctors
-   ```
-3. Run the automated deployment script:
+The system is built using a modern, scalable stack of open-source technologies:
+
+| Category | Technology | Purpose |
+| :--- | :--- | :--- |
+| **Orchestration** | **Docker Swarm** | Container orchestration, scaling, and service management. |
+| **Gateway** | **NGINX** | Reverse proxy, SSL/TLS termination, and request routing. |
+| **Messaging** | **Apache Kafka** | Asynchronous, fault-tolerant communication between services. |
+| **Streaming/Cache** | **Redis Streams** | Real-time, token-by-token streaming of responses to the client. |
+| **Knowledge Base** | **Qdrant** | High-performance vector database for RAG retrieval. |
+| **Persistence** | **MongoDB** | Document database for storing user chat histories. |
+| **LLM Inference** | **Groq API** | High-speed inference for LLMs (e.g., Llama 3.3 70B). |
+| **Backend** | **Python** | Core application logic, with **FastAPI** for APIs and **Typer** for the CLI. |
+
+## 🚀 Deployment and Setup
+
+The system is designed to be deployed as a set of containerized services using Docker Swarm.
+
+### Prerequisites
+- **Docker** & **Docker Swarm** must be installed and properly configured on your machine.
+
+### 1. Environment Configuration
+Before deploying, you must configure the environment variables.
+
+1.  Navigate to the `scripts` directory.
+2.  Copy the example environment file:
+    
 	```bash
-   ./scripts/deploy.sh
-   ```
-Optionally, preload the vector store in RAG modules with domain-specific corpora:
+    cp setup_envs.example.sh setup_envs.sh
+    ```
+3.  Open `setup_envs.sh` with a text editor and fill in the required values (e.g., API keys, secrets).
+4.  Launch `setup_envs.sh` script:
+
+    ```bash
+    ./scripts/setup_envs.sh
+    ```
+
+### 2. System Deployment
+From the project's root directory, run the automated deployment script:
 ```bash
-	./scripts/deploy.sh --ingest
+./scripts/deploy.sh
+```
+This will build and launch all services. The CLI will appear in your terminal, ready for interaction.
+
+**Optional: Data Ingestion**
+To preload the RAG modules' knowledge bases with domain-specific documents, use the `--ingest` flag:
+```bash
+./scripts/deploy.sh --ingest
 ```
 
-### Redeployment
-Individual services can be selectively redeployed:
+### 3. Redeployment
+To update a single service without restarting the entire stack:
 ```bash
-	./scripts/redeploy.sh --<service-name>
+./scripts/redeploy.sh --<service-name>
 ```
-Available service options:
-- `--orchestrator`
-- `--synthesizer`
-- `--chat-history`
-- `--rag-module`
-- `--nginx`
-- `--cli`
-- `--all` (redeploys all application services without affecting databases and message brokers)
+Available services include `--orchestrator`, `--synthesizer`, `--rag-module`, `--cli`, `--nginx`, `--chat-history`, and `--all`.
 
-### Undeployment
+### 4. Undeployment
+To stop and remove all services and containers:
 ```bash
-For controlled shutdown and environment cleanup:
-	./scripts/undeploy.sh
+./scripts/undeploy.sh
 ```
-Available flags:
-- `--volumes`: Removes all persistent data volumes
-- `--points`: Clears vector embeddings without altering configuration files
+**Flags:**
+- `--volumes`: Removes all persistent data (databases, message queues).
+- `--points`: Clears only the vector embeddings in Qdrant.
 
-## User guide
-After successful deployment, an interactive command-line interface (CLI REPL) is presented:
+## 💻 User Guide
 
-### Basic Commands
+After deployment, you can interact with the system via the interactive CLI (REPL).
+
+### Command Reference
 
 | Command | Description |
-|---------|-------------|
-| `mod new <username>` | Create new session |
-| `mod restore <username>` | Load existing chat history |
-| `mod chat <username>` | Automatically create or restore session |
-| `mod ask "<question>"` | Ask a health question |
-| `mod ask "<question>" --oneshot` | Ask without saving to history |
-| `mod quit` | End session |
-| `help` | Show all commands |
-| `quit` or `exit` | Exit the REPL interface |
+|:---|:---|
+| `mod new <username>` | Creates a new chat session for a user. |
+| `mod restore <username>` | Loads a user's existing chat history. |
+| `mod chat <username>` | Automatically creates a new session or restores an existing one. |
+| `mod ask "<question>"` | Asks a question to the system. The conversation is saved. |
+| `mod ask "<question>" --oneshot` | Asks a question without saving it to the chat history. |
+| `mod quit` | Ends the current user session and cleans up auth files. |
+| `help` | Shows all available commands. |
+| `quit` or `exit` | Exits the REPL interface. |
 
-### Example Session
-1. Start a new session:
-```bash
-	mod new john
-```
+### Example Usage
 
-2. Ask health-related questions:
-```bash
-	mod ask "What lifestyle changes can help manage my diabetes?"
-```
+1.  **Start a new session for a user named "luca"**:
+    ```bash
+    mod new luca
+    ```
 
-3. Ask cross-condition questions:
-```bash
-	mod ask "How does hypertension affect multiple sclerosis symptoms?"
-```
+2.  **Ask a question about a single condition (Medium Query)**:
+    ```bash
+    mod ask "What are the early signs of diabetes?"
+    ```
 
-4. End your session:
-```bash
-	mod quit
-```
+3.  **Ask a cross-domain question (Hard Query)**:
+    ```bash
+    mod ask "How does hypertension impact the management of multiple sclerosis?"
+    ```
 
-5. Later, restore your previous session:
-```bash
-	mod restore john
-```
+4.  **End the session**:
+    ```bash
+    mod quit
+    ```
 
-## Technical Details
+5.  **Return later and restore the conversation**:
+    ```bash
+    mod restore luca
+    ```
 
-The system is composed of several key components:
+## 🎯 Limitations and Future Work
 
-- **Orchestrator**: Central coordination hub that manages request distribution
-- **RAG Modules**: Specialized "doctors" that retrieve relevant information and generate responses
-- **Synthesizer**: Aggregates responses from multiple RAG modules for cross-domain queries
-- **Chat History**: Maintains conversation context and history
+### Current Limitations
+- **Finite Context Window**: Long conversations are limited by the LLM's context size.
+- **Standard RAG Pipeline**: The system uses a single-pass RAG, which may be insufficient for highly complex reasoning.
+- **Minimal Security**: The prototype lacks a formal authentication/authorization layer and robust prompt injection defenses.
 
-Communication between components uses:
-- Apache Kafka for asynchronous messaging
-- Redis Streams for real-time response streaming
-- Qdrant Vector Database for knowledge storage
-- Groq LLM API for inference
-- NGINX as a reverse proxy
+### Future Enhancements
+- **Advanced UI**: Develop a graphical user interface (web or mobile).
+- **Rigorous Evaluation**: Implement quantitative metrics to evaluate RAG performance.
+- **GraphRAG Migration**: Transition to a graph-based RAG for more sophisticated, interconnected reasoning.
+- **Evolve to a Multi-Agent System**: Enhance Doctor modules into autonomous agents with richer internal reasoning loops.
+- **Automated Ingestion Pipeline**: Create a pipeline to keep knowledge bases automatically updated.
+- **Comprehensive Security**: Add a dedicated authentication service and robust security protocols.
 
-## Limitations and Future Work
+## 👥 Authors
 
-While the initial interface is CLI-based, the system is built around RESTful APIs, making it extensible to graphical interfaces (web or mobile) in future development. This modular design ensures flexibility, scalability, and ease of integration with other platforms.
-
-## Contributors
-
-- Luca Samorè (luca.samore@studio.unibo.it)
-- Lucia Castellucci (lucia.castellucci2@studio.unibo.it)
-- Roberto Mitugno (roberto.mitugno@studio.unibo.it)
-
-## License
+- **Luca Samorè** - [luca.samore@studio.unibo.it](mailto:luca.samore@studio.unibo.it)
+- **Lucia Castellucci** - [lucia.castellucci2@studio.unibo.it](mailto:lucia.castellucci2@studio.unibo.it)
+- **Roberto Mitugno** - [roberto.mitugno@studio.unibo.it](mailto:roberto.mitugno@studio.unibo.it)
