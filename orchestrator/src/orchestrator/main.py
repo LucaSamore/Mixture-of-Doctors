@@ -3,38 +3,44 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from .planning import reason, act, ChatbotQuery
 from .exceptions import PlanningException
-from .configurations import get_kafka_producer, get_redis_client, get_llm_groq
+from .utilities import (
+    init_kafka_producer,
+    init_redis_client,
+    init_groq_client,
+    get_kafka_producer,
+    get_redis_client,
+    get_llm_groq,
+)
 from aiokafka import AIOKafkaProducer
 from groq import AsyncGroq
 import redis.asyncio as redis
-import os
-import json
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    kafka_producer = AIOKafkaProducer(
-        bootstrap_servers=os.getenv("KAFKA_BROKER", "localhost:9092"),
-        value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-    )
+    kafka_producer = await init_kafka_producer()
+    redis_client = await init_redis_client()
+    llm_groq = await init_groq_client()
+
     await kafka_producer.start()
-    redis_client = redis.Redis(
-        host=os.getenv("REDIS_HOST", "redis"),
-        port=(lambda p: int(p) if p else 6379)(os.getenv("REDIS_PORT")),
-        password=os.getenv("REDIS_PASSWORD", "redispassword"),
-        decode_responses=True,
-    )
-    llm_groq = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
+
     app.state.kafka_producer = kafka_producer
     app.state.redis_client = redis_client
     app.state.llm_groq = llm_groq
+
     yield
+
     await kafka_producer.stop()
     await redis_client.close()
     await llm_groq.close()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="Orchestrator's REST API",
+    description="This API orchestrates the planning and execution of chatbot queries.",
+    version="0.1.0",
+    lifespan=lifespan,
+)
 
 
 @app.exception_handler(PlanningException)

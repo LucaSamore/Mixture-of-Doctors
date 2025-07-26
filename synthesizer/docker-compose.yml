@@ -13,7 +13,7 @@ services:
       - KAFKA_BROKER=${KAFKA_BROKER}
       - GROQ_API_KEY=${GROQ_API_KEY}
     deploy:
-      replicas: 3
+      replicas: 2
       restart_policy:
         condition: on-failure
         delay: 5s

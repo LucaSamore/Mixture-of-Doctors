@@ -1,12 +1,12 @@
 from enum import Enum
 from pydantic import BaseModel
-from .configurations import (
-    logger,
+from .utilities import (
     get_diseases_from_config_file,
     PromptTemplate,
     prepare_prompt,
     CHAT_HISTORY_URL,
 )
+from loguru import logger
 from .exceptions import ReasoningException, ActingException
 from datetime import datetime
 from typing import List

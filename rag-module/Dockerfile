@@ -11,4 +11,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["python", "-m", "src.rag_module.rag_process"]
+CMD ["python", "-m", "src.rag_module.main"]
